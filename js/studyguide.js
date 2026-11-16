@@ -1,5 +1,5 @@
 /* ==========================================================================
-   PREP HQ: READING STUDY GUIDES
+   EXAM PREP HQ: READING STUDY GUIDES
    Pulls text out of PDF, Word (.docx), and text files right in the browser,
    then guesses the list of topics. Students always get to edit the list.
    ========================================================================== */
@@ -197,5 +197,258 @@
     return result;
   }
 
-  window.StudyGuide = { extract, topicsFromText, readMindprint };
+  /* ======================================================================
+     STUDY GUIDE READER
+     Works from layout, not just words. In order:
+       1. A summary table ("Sections on the Exam | Specifics | How to study"):
+          section names from the first column, specifics from the second.
+       2. Page headings (much bigger text, like GRAMMAR) and the short
+          subheadings under them at the left margin ("Participles—Underline...",
+          "Commas: Directions...", "Semicolons").
+       3. If neither is found, the older line-by-line guess.
+     Practice questions, numbered items, answer blanks, and answer keys are skipped.
+     Returns [{ text, details: [] }]. Students always review the list.
+     ====================================================================== */
+  const BULLET = /^[❖•●○◦▪■□✓✔➢►▶✦★◆◇→*–-]\s*/;
+  const INSTRUCTION = /^(underline|indicate|punctuate|mark|identify|write|define|circle|label|answer|explain|complete|fill|choose|match|list|describe|read|directions|highlight|correct|rewrite|combine|use|solve|show|find|draw|compare)\b/i;
+  const NOT_TOPICS = /^(name|date|period|class|teacher|score|notes?|quote|answer|essay question|due|page|directions|key)\b/i;
+
+  const clean = t => t.replace(/\s+/g, " ").replace(/\s*\/\s*/g, "/").replace(/[\s:;,.\-–—]+$/, "").trim();
+  const words = t => t.split(/\s+/).filter(Boolean).length;
+  const capFirst = t => t.charAt(0).toUpperCase() + t.slice(1);
+  const SMALL = /^(of|and|the|to|in|for|a|an|on|or|vs)$/i;
+  const unCaps = t => (t === t.toUpperCase() && /[A-Z]{3}/.test(t))
+    ? t.toLowerCase().split(" ").map((w, i) => (i > 0 && SMALL.test(w)) ? w : w.charAt(0).toUpperCase() + w.slice(1)).join(" ")
+    : t;
+
+  // PDF -> pages of "runs" (pieces of text on one line that sit together).
+  async function pdfPages(file) {
+    await loadScript(PDFJS);
+    window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER;
+    const doc = await window.pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;
+    const pages = [];
+    for (let p = 1; p <= Math.min(doc.numPages, 25); p++) {
+      const page = await doc.getPage(p);
+      const tc = await page.getTextContent();
+      pages.push(itemsToRuns(tc.items));
+    }
+    return pages;
+  }
+
+  function itemsToRuns(items) {
+    const runs = [];
+    let cur = null;
+    items.forEach(it => {
+      if (!it.str || !it.str.trim()) return;
+      const x = it.transform[4], y = it.transform[5], h = it.height || Math.abs(it.transform[3]);
+      const gap = cur ? x - cur.end : 0;
+      if (cur && Math.abs(cur.y - y) <= 3 && gap > -2 && gap < 12) {
+        cur.text += (gap > 1.5 ? " " : "") + it.str;
+        cur.end = x + it.width;
+        cur.size = Math.max(cur.size, h);
+      } else {
+        if (cur) runs.push(cur);
+        cur = { text: it.str, x, y, end: x + it.width, size: h };
+      }
+    });
+    if (cur) runs.push(cur);
+    runs.forEach(r => { r.text = r.text.replace(/\s+/g, " ").trim(); r.size = Math.round(r.size * 10) / 10; });
+    return runs;
+  }
+
+  function bodySize(pages) {
+    const count = {};
+    pages.flat().forEach(r => { const k = Math.round(r.size); count[k] = (count[k] || 0) + r.text.length; });
+    return Number(Object.entries(count).sort((a, b) => b[1] - a[1])[0][0]);
+  }
+
+  /* 1) Summary table */
+  function tableTopics(pages, body) {
+    const HEADER = /^(sections?|topics?|units?|content|areas?|skills?|categories|what's on the exam)\b|\bon the exam\b/i;
+    for (const runs of pages) {
+      const header = runs.find(r => HEADER.test(r.text) && words(r.text) <= 7);
+      if (!header) continue;
+      const cols = runs.filter(r => Math.abs(r.y - header.y) <= 3).sort((a, b) => a.x - b.x);
+      if (cols.length < 2 || cols[0] !== header) continue;
+      const below = runs.filter(r => r.y < header.y - 2 && r.y > 60);
+      // Header words are often centered, so find where each column's text really starts.
+      const h2 = cols[1].x, h3 = cols[2] ? cols[2].x : Infinity;
+      const c3 = h3 === Infinity ? Infinity : Math.min(...below.filter(r => r.x > h2 + 40 && r.x >= h3 - 60).map(r => r.x).concat([h3]));
+      const c2 = Math.min(...below.filter(r => r.x >= h2 - 60 && r.x < c3).map(r => r.x).concat([h2]));
+      const col2 = c2 + 15, col3 = c3 === Infinity ? Infinity : c3 + 10;
+
+      // Row labels: first column, normal-or-bigger text, not bullets.
+      let labels = below.filter(r => r.x < col2 - 15 && r.size >= body * 0.95 && !BULLET.test(r.text) && /[A-Za-z]{3}/.test(r.text))
+        .sort((a, b) => b.y - a.y);
+      const merged = [];
+      labels.forEach(l => {
+        const prev = merged[merged.length - 1];
+        if (prev && prev.y - l.y < prev.size * 1.6) { prev.text += " " + l.text; prev.y2 = l.y; }
+        else merged.push(Object.assign({ y2: l.y }, l));
+      });
+      if (merged.length < 2) continue;
+
+      const topics = merged.map((l, i) => {
+        const top = l.y + l.size;
+        const bottom = merged[i + 1] ? merged[i + 1].y + merged[i + 1].size : -Infinity;
+        const cells = below.filter(r => r.x >= col2 - 20 && r.x < col3 - 15 && r.y <= top && r.y > bottom)
+          .sort((a, b) => (b.y - a.y) || (a.x - b.x));
+        const hasBullets = cells.some(c => BULLET.test(c.text));
+        const details = [];
+        let fresh = true;
+        cells.forEach(c => {
+          if (/^[❖•●○◦▪■□✓✔➢►▶✦★◆◇]$/.test(c.text)) { fresh = true; return; }
+          const isNew = !hasBullets || fresh || BULLET.test(c.text);
+          const t = c.text.replace(BULLET, "");
+          if (isNew || !details.length) details.push(t); else details[details.length - 1] += " " + t;
+          fresh = false;
+        });
+        return { text: clean(unCaps(l.text)), details: details.map(d => capFirst(clean(d))).filter(Boolean) };
+      });
+      return topics;
+    }
+    return [];
+  }
+
+  /* 2) Page headings and subheadings */
+  function subheading(text) {
+    const t = text.replace(/\s+/g, " ").trim();
+    if (!/^[A-Z“"']/.test(t) || /^\d/.test(t) || /=/.test(t) || NOT_TOPICS.test(t) || INSTRUCTION.test(t)) return null;
+    const m = t.match(/^(.{2,70}?)\s*(—|–|--|-\s|:)\s*(.*)$/);
+    if (m) {
+      const term = m[1], rest = m[3].trim();
+      if (!rest || /_{3,}/.test(rest)) return null;                // "Fragment: ______", "Run- on:____", "Title:"
+      if (words(term) > 6 || /_{2,}/.test(term)) return null;
+      return clean(term);
+    }
+    if (/_{2,}/.test(t)) return null;
+    const w = t.split(" ");
+    const verbAt = w.findIndex((x, i) => i > 0 && INSTRUCTION.test(x));
+    if (verbAt > 0 && verbAt <= 4 && !/,/.test(w.slice(0, verbAt).join(" "))) return clean(w.slice(0, verbAt).join(" "));
+    if (w.length <= 6 && !/[.?!:]$/.test(t)) return clean(t);
+    return null;
+  }
+
+  function headingTopics(pages, body, opts = {}) {
+    const sections = [];
+    let cur = null;
+    pages.forEach((runs, pi) => {
+      const bodyRuns = runs.filter(r => Math.abs(r.size - body) <= 2.5 && r.y > 60 && !/^\d+$/.test(r.text));
+      const margin = bodyRuns.length ? Math.min(...bodyRuns.map(r => r.x)) : 0;
+      const ordered = runs.slice().sort((a, b) => (b.y - a.y) || (a.x - b.x));
+      ordered.forEach((r, ri) => {
+        const t = r.text.trim();
+        const big = r.size >= body * 1.35 || r.big;
+        if (big) {
+          if (words(t) > 7 || /\b20\d\d\b/.test(t) || /^\d/.test(t) || /review|packet|study guide|semester exam|final exam/i.test(t)) return;
+          cur = { text: clean(unCaps(t)), details: [] };
+          sections.push(cur);
+          return;
+        }
+        if (!cur || Math.abs(r.x - margin) > 8) return;
+        if (opts.needEmphasis && !r.emph) return;
+        // Skip lines that are really wrapped text ("Love at first" / "sight").
+        const structured = /(—|–|--|-\s|:)/.test(t) || t.split(" ").slice(1, 5).some(w => INSTRUCTION.test(w));
+        if (!structured) {
+          const next = ordered[ri + 1];
+          if (/[,]$/.test(t) || /\b(or|and|the|of|to|a|at|in)$/i.test(t)) return;
+          if (next && r.y - next.y < r.size * 1.8 && Math.abs(next.x - r.x) < 30 && /^[a-z]/.test(next.text)) return;
+        }
+        const sub = subheading(t);
+        if (sub && !cur.details.some(d => d.toLowerCase() === sub.toLowerCase())) cur.details.push(capFirst(sub));
+      });
+    });
+    return sections;
+  }
+
+  /* Match a page heading to a table section ("Figurative Language" ~ "Figures of Speech"). */
+  function sameTopic(a, b) {
+    const wa = a.toLowerCase().match(/[a-z]{4,}/g) || [], wb = b.toLowerCase().match(/[a-z]{4,}/g) || [];
+    return wa.some(x => wb.some(y => x.slice(0, 5) === y.slice(0, 5)));
+  }
+
+  function combine(table, heads) {
+    if (table.length >= 2) {
+      table.forEach(t => {
+        const h = heads.find(x => sameTopic(t.text, x.text));
+        if (h && h.details.length >= 2) t.details = h.details;
+      });
+      return table;
+    }
+    const useful = heads.filter(h => h.details.length || heads.length >= 2);
+    return useful.length >= 2 ? useful : [];
+  }
+
+  // Word files: tables and headings come through as HTML.
+  async function docxPages(file) {
+    await loadScript(MAMMOTH);
+    const r = await window.mammoth.convertToHtml({ arrayBuffer: await file.arrayBuffer() });
+    const dom = new DOMParser().parseFromString(`<div>${r.value}</div>`, "text/html");
+    const root = dom.body.firstChild;
+    let table = [];
+    const runs = [];
+    let y = 100000;
+    Array.from(root.children).forEach(el => {
+      const tag = el.tagName.toLowerCase();
+      if (tag === "table" && !table.length) {
+        const rows = Array.from(el.querySelectorAll("tr"));
+        const cellLines = td => Array.from(td.querySelectorAll("p, li")).map(x => x.textContent.trim()).filter(Boolean);
+        if (rows.length >= 3) {
+          const first = rows[0].children[0] ? rows[0].children[0].textContent.trim() : "";
+          const body = /^(sections?|topics?|units?|content|areas?|skills?)\b|\bon the exam\b/i.test(first) ? rows.slice(1) : rows;
+          table = body.map(tr => {
+            const c = tr.children;
+            return c.length >= 2 ? { text: clean(unCaps(c[0].textContent.trim())), details: cellLines(c[1]).map(d => capFirst(clean(d.replace(BULLET, "")))).filter(Boolean) } : null;
+          }).filter(t => t && t.text && words(t.text) <= 6);
+        }
+        return;
+      }
+      const text = el.textContent.trim();
+      if (!text) return;
+      const strong = Array.from(el.querySelectorAll("strong")).map(s => s.textContent).join("").trim();
+      runs.push({ text, x: 0, y: y--, size: /^h[12]$/.test(tag) ? 30 : 12, big: /^h[12]$/.test(tag), emph: /^h[3-6]$/.test(tag) || (strong.length && strong.length >= text.replace(/[:\-—].*$/, "").trim().length * 0.8) });
+    });
+    return { pages: [runs], table, text: root.textContent };
+  }
+
+  // Pasted text: ALL CAPS lines are sections; subheadings need a dash, colon, or instruction word.
+  function textPages(text) {
+    let y = 100000;
+    const runs = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean).map(l => {
+      const caps = l === l.toUpperCase() && /[A-Z]{3}/.test(l) && words(l) <= 6;
+      return { text: l, x: 0, y: y--, size: caps ? 30 : 12, big: caps, emph: !caps && (/(—|–|--|-\s|:)/.test(l) || l.split(" ").slice(1, 7).some(w => INSTRUCTION.test(w))) };
+    });
+    return [runs];
+  }
+
+  async function readGuide(file) {
+    const name = file.name.toLowerCase();
+    let topics = [];
+    if (name.endsWith(".pdf")) {
+      const pages = await pdfPages(file);
+      if (!pages.flat().length) return { readable: false, topics: [] };
+      const body = bodySize(pages);
+      topics = combine(tableTopics(pages, body), headingTopics(pages, body));
+      if (!topics.length) topics = topicsFromText(pages.map(rs => rs.sort((a, b) => b.y - a.y).map(r => r.text).join("\n")).join("\n")).map(t => ({ text: t, details: [] }));
+    } else if (name.endsWith(".docx")) {
+      const d = await docxPages(file);
+      topics = combine(d.table, headingTopics(d.pages, 12, { needEmphasis: true }));
+      if (!topics.length) topics = topicsFromText(d.text).map(t => ({ text: t, details: [] }));
+    } else if (name.endsWith(".txt") || name.endsWith(".md") || file.type.startsWith("text/")) {
+      topics = readPasted(await file.text());
+    } else {
+      return { readable: false, topics: [] };
+    }
+    return { readable: true, topics: topics.slice(0, 20) };
+  }
+
+  function readPasted(text) {
+    const t = combine([], headingTopics(textPages(text), 12, { needEmphasis: true }));
+    return t.length ? t : topicsFromText(text).map(x => ({ text: x, details: [] }));
+  }
+
+  // Exposed for testing in Node.
+  const _internals = { itemsToRuns, bodySize, tableTopics, headingTopics, combine, subheading };
+
+  window.StudyGuide = { extract, topicsFromText, readMindprint, readGuide, readPasted, _internals };
 })();

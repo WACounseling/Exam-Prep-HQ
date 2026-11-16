@@ -122,6 +122,23 @@ The header shows "WOODWARD ACADEMY" as text so no logo is recreated. To use the 
 
 In the `exam-prep-hq` folder, run `python3 -m http.server 8000` and open `http://localhost:8000`. To test Google sign-in locally, also add `http://localhost:8000` as an Authorized JavaScript origin.
 
+## How the study guide reader works
+
+The reader runs entirely in the student's browser and looks at layout, not just words:
+
+1. **Summary table.** If the guide has a table with a header like "Sections on the Exam," "Topics," or "Units," the first column becomes the topics and the second column becomes the details. A "How to study" column is ignored.
+2. **Headings.** Text much bigger than the rest (like GRAMMAR) starts a section. Short lines at the left margin become subtopics, for example "Participles—Underline...", "Commas: Directions...", "Semicolons", or "Active/Passive Voice Indicate...".
+3. **Skipped:** numbered practice items, fill-in blanks ("Fragment: ____"), answer keys ("A= ..."), directions, and worksheet labels ("Title:").
+4. **Fallback:** if neither is found, it falls back to a simpler line-by-line guess.
+
+Students always see what was found and can uncheck, rename, or add topics.
+
+Big sections are split into smaller study sessions automatically. A topic with more than 4 parts becomes sessions of about 3 parts each, so "Grammar" with 7 parts becomes 3 sessions.
+
+Study instructions change with the kind of topic: grammar, vocabulary, figures of speech, literature, writing, math, history, or science. To change the wording, edit `METHODS` in `js/planner.js`.
+
+**Tested on:** the 8th Honors English (Lee) exam review packet, plus pasted text. Word (.docx) files are read the same way, using their tables and headings. Test a guide or two from each department before launch, since every teacher formats differently.
+
 ## How the plan is built
 
 1. Open study time = the student's study windows minus their busy blocks, planned tutorials, days off, and free day. Sessions get a 10-minute break after them. Exam days get one fewer session.

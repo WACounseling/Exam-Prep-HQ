@@ -550,7 +550,7 @@
           <h4>Study guide topics</h4>
           ${c.topics.length ? `<p class="xs muted" style="margin:-4px 0 6px">Tap a face for each one. Shaky topics get more practice.</p><ul class="topics">${c.topics.map(t => `
             <li class="topic">
-              <input type="text" value="${esc(t.text)}" data-topic="${e.id}|${t.id}" aria-label="Topic name">
+              <span class="topic-name"><input type="text" value="${esc(t.text)}" data-topic="${e.id}|${t.id}" aria-label="Topic name">${(t.details || []).length ? `<span class="topic-details">${esc(t.details.join(", "))}</span>` : ""}</span>
               <div class="conf" role="group" aria-label="How you feel about ${esc(t.text)}">${confButtons("topic-conf", t.conf, `data-class="${e.id}" data-id="${t.id}"`)}</div>
               <button class="icon-btn" data-act="topic-del" data-class="${e.id}" data-id="${t.id}" aria-label="Delete ${esc(t.text)}">🗑️</button>
             </li>`).join("")}</ul>` : `<p class="small muted">Upload your study guide and we'll find the topics. Or type them below.</p>`}
@@ -822,8 +822,8 @@
       }
       c.guides.push(record);
       try {
-        const text = await window.StudyGuide.extract(file);
-        if (text == null) unreadable++; else found = found.concat(window.StudyGuide.topicsFromText(text));
+        const r = await window.StudyGuide.readGuide(file);
+        if (!r.readable) unreadable++; else found = found.concat(r.topics);
       } catch (err) { unreadable++; }
     }
     save({ planInputs: true });
@@ -834,15 +834,19 @@
   }
 
   function reviewTopics(classId, list) {
+    // list items are { text, details } (older callers may pass plain strings)
+    const items = list.map(x => typeof x === "string" ? { text: x, details: [] } : x);
     const existing = new Set(st().classes[classId].topics.map(t => t.text.toLowerCase()));
-    const fresh = Array.from(new Set(list)).filter(t => !existing.has(t.toLowerCase()));
+    const seen = new Set();
+    const fresh = items.filter(t => { const k = t.text.toLowerCase(); if (existing.has(k) || seen.has(k)) return false; seen.add(k); return true; });
     if (!fresh.length) { toast("Those topics are already on your list."); return; }
     openModal(`
       <form method="dialog">
         <div class="modal-body">
-          <h3>We found ${fresh.length} topics</h3>
-          <p class="muted">Uncheck any that aren't really topics.</p>
-          <ul class="pick-list">${fresh.map((t, i) => `<li><label><input type="checkbox" name="t" value="${i}" checked> ${esc(t)}</label></li>`).join("")}</ul>
+          <h3>We found ${fresh.length} topic${fresh.length === 1 ? "" : "s"}</h3>
+          <p class="muted">Uncheck anything that isn't really a topic. You can rename them after.</p>
+          <ul class="pick-list">${fresh.map((t, i) => `<li><label><input type="checkbox" name="t" value="${i}" checked>
+            <span><b>${esc(t.text)}</b>${t.details.length ? `<br><span class="small muted">${esc(t.details.join(", "))}</span>` : ""}</span></label></li>`).join("")}</ul>
         </div>
         <div class="modal-foot"><button class="btn ghost" type="button" data-act="modal-close">Cancel</button><button class="btn" type="submit">Add them</button></div>
       </form>`);
@@ -850,7 +854,7 @@
       ev.preventDefault();
       const picks = $$("#modal input[name=t]:checked").map(i => fresh[Number(i.value)]);
       const c = st().classes[classId];
-      picks.forEach(text => c.topics.push({ id: uid(), text, conf: Number(c.confidence) || 3 }));
+      picks.forEach(t => c.topics.push({ id: uid(), text: t.text, details: t.details || [], conf: Number(c.confidence) || 3 }));
       closeModal();
       save({ planInputs: true });
       render();
@@ -870,7 +874,7 @@
       </form>`);
     $("#modal form").addEventListener("submit", ev => {
       ev.preventDefault();
-      const list = window.StudyGuide.topicsFromText($("#paste-box").value);
+      const list = window.StudyGuide.readPasted($("#paste-box").value);
       closeModal();
       if (list.length) reviewTopics(classId, list); else toast("We couldn't find topics. Try adding them one at a time.");
     });

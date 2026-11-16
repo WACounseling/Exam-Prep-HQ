@@ -65,9 +65,34 @@
   }
 
   /* ---------- Tasks: what needs to be studied ---------- */
+  // Split a long list into even groups of about 3 ("Grammar" with 7 parts -> 3 + 2 + 2).
+  function chunk(list) {
+    const groups = Math.ceil(list.length / 3);
+    const out = [];
+    let i = 0;
+    for (let g = 0; g < groups; g++) {
+      const size = Math.ceil((list.length - i) / (groups - g));
+      out.push(list.slice(i, i + size));
+      i += size;
+    }
+    return out;
+  }
+
   function topicsFor(state, examId) {
     const cls = state.classes[examId];
-    if (cls.topics && cls.topics.length) return cls.topics.filter(t => t.text && t.text.trim());
+    if (cls.topics && cls.topics.length) {
+      const out = [];
+      cls.topics.filter(t => t.text && t.text.trim()).forEach(t => {
+        const details = (t.details || []).filter(Boolean);
+        if (details.length > 4) {
+          // Big sections become smaller study sessions, each with the same rating.
+          chunk(details).forEach((part, k) => out.push({ id: `${t.id}-p${k}`, text: `${t.text}: ${part.join(", ")}`, conf: t.conf, isPart: true }));
+        } else {
+          out.push({ id: t.id, text: details.length ? `${t.text}: ${details.join(", ")}` : t.text, conf: t.conf });
+        }
+      });
+      return out;
+    }
     return (window.CONTENT.defaultTopics[examId] || ["Study guide review"]).map((text, i) => ({
       id: `default-${examId}-${i}`, text, conf: Number(cls.confidence) || 3, isDefault: true
     }));
@@ -82,7 +107,8 @@
       topicsFor(state, e.id).forEach(t => {
         const conf = Number(t.conf) || Number(cls.confidence) || 3;
         let reps = conf <= 2 ? 3 : conf === 3 ? 2 : 1;
-        if (!isNaN(grade) && grade < 80 && conf <= 3) reps = Math.min(4, reps + 1);
+        if (t.isPart) reps = Math.min(reps, 2);   // parts are smaller, so 2 rounds is plenty
+        if (!isNaN(grade) && grade < 80 && conf <= 3 && !t.isPart) reps = Math.min(4, reps + 1);
         if (!isNaN(grade) && grade >= 93 && conf >= 4) reps = 1;
         const weight = (6 - conf) + (isNaN(grade) ? 0 : grade < 80 ? 2 : grade < 88 ? 1 : 0);
         for (let r = 0; r < reps; r++) {
@@ -99,43 +125,85 @@
   function mp(state, skill) { return window.Store.mpLevel(skill); }
   const has = name => window.Store.mpHasStrategy(name);
 
+  // What kind of topic is this? Used to pick a study method that fits.
+  // The section name ("Figures of Speech: ...") decides first, then the details.
+  function kindOf(task) {
+    const full = (task.topicText || "").toLowerCase();
+    const name = full.split(":")[0];
+    const k = kindOfText(name, task.classId);
+    return k !== "general" ? k : kindOfText(full, task.classId);
+  }
+  function kindOfText(t, classId) {
+    const task = { classId };
+    if (task.classId === "math" || /\b(equation|slope|function|graph|fraction|ratio|algebra|geometry|integer|expression|inequalit|probabilit|statistic)/.test(t)) return "math";
+    if (/\b(grammar|comma|semicolon|participle|gerund|infinitive|verbal|voice|fragment|run-on|punctuation|clause|phrase|sentence|verb tense|conjugat|agreement)/.test(t)) return "grammar";
+    if (/\b(vocab|word list|key terms|terms|definitions)/.test(t)) return "vocab";
+    if (/\b(figure|figurative|simile|metaphor|literary (terms|devices)|personification|irony)/.test(t)) return "devices";
+    if (/\b(writing|essay|paragraph|thesis|response)/.test(t)) return "writing";
+    if (/\b(literature|shakespeare|story|stories|novel|play|poem|poetry|chapter|act |character|theme|reading|passage)/.test(t)) return "literature";
+    if (/\b(people|dates|events|war|revolution|empire|government|map|document|cause)/.test(t)) return "history";
+    if (/\b(lab|diagram|process|cycle|cell|photosynth|genetic|punnett|force|energy|ecosystem|element|reaction)/.test(t)) return "science";
+    return "general";
+  }
+
+  const METHODS = {
+    rebuild: {
+      math: "Redo 3 worked examples from your notes, then try 3 similar problems on your own.",
+      grammar: "Redo 5 practice sentences from your review sheet on a fresh page, then check them. For each one, explain the rule.",
+      vocab: "Make flashcards: the word on the front, the meaning and your own example sentence on the back.",
+      devices: "For each one, write the definition and your own example. Then find one real example in something you've read.",
+      literature: "Make a one-page summary: characters, setting, main events, and themes.",
+      writing: "Write the parts of the format from memory, then check them against your notes.",
+      history: "Make a timeline or cause-and-effect chart from your notes.",
+      science: "Draw and label the key diagram or process from memory, then check it.",
+      general: "Make 10 flashcards with a question on the front and the answer on the back."
+    },
+    quiz: {
+      math: "Do 6 practice problems without notes. Then check and fix every mistake.",
+      grammar: "Do the practice sentences again without notes, then check. Redo any you missed.",
+      vocab: "Quiz yourself with your flashcards. Set aside the ones you miss and go through those twice.",
+      devices: "Cover your notes. Name each one and give an example from memory, then check.",
+      literature: "Blurt it: write everything you remember about it for 5 minutes, then check your notes and fill gaps in a new color.",
+      writing: "Write one practice paragraph in 15 minutes using the format, then check each part.",
+      history: "Blurt it: write every person, date, and cause you remember for 5 minutes, then check.",
+      science: "Explain the process step by step without notes, then check what you missed.",
+      general: "Blurt it: write everything you remember for 5 minutes, then check your notes and fill gaps in a new color."
+    },
+    mix: {
+      math: "Mixed practice: pick problems from this topic and two others, shuffle them, and solve.",
+      general: "Teach it: explain this topic out loud to someone (or a pet) without notes, then quiz yourself on what you skipped."
+    },
+    review: {
+      math: "Quick review: redo 4 problems you missed before, without looking at the answers first.",
+      general: "Quick review: go through your flashcards, summary, or notes. Spend extra time on anything you missed last time."
+    }
+  };
+
   function tipFor(task, state) {
     const subj = task.classId;
+    const kind = kindOf(task);
     const strongVisual = mp(state, "spatial") === "strength" || mp(state, "visualMemory") === "strength";
-    const strongVerbal = mp(state, "verbal") === "strength" || mp(state, "verbalMemory") === "strength";
     const extras = [];
     let tip = "";
 
-    if (task.kind === "rebuild") {
-      if (subj === "math") tip = "Redo 3 worked examples from your notes, then try 3 similar problems on your own.";
-      else if (strongVisual) tip = "Turn your notes on this into a one-page concept map or sketch. Labels and arrows only.";
-      else if (strongVerbal) tip = "Write a 5-sentence summary in your own words, then explain it out loud.";
-      else if (subj === "lang") tip = "Make 10 flashcards: the word or phrase on one side, meaning and an example on the other.";
-      else tip = "Make 10 flashcards with a question on the front and the answer on the back.";
-    } else if (task.kind === "quiz") {
-      if (subj === "math") tip = "Do 6 practice problems without notes. Then check and fix every mistake.";
-      else tip = "Blurt it: write everything you remember for 5 minutes, then check your notes and fill gaps in a new color.";
-    } else if (task.kind === "mix") {
-      tip = subj === "math"
-        ? "Mixed practice: pick problems from this topic and two others, shuffle them, and solve."
-        : "Teach it: explain this topic out loud to someone (or a pet) without notes, then quiz yourself on what you skipped.";
-    } else if (task.kind === "review") {
-      tip = subj === "math"
-        ? "Quick review: redo 4 problems you missed before, without looking at the answers first."
-        : "Quick review: run through your flashcards or map. Set aside the ones you miss and go through those twice.";
+    if (task.kind === "gear") {
+      tip = "Gather each class's study guide, notes, and old quizzes. Put each class in one folder and upload study guides to Exam Prep HQ.";
     } else if (task.kind === "test") {
       const mins = window.Store.examMinutes();
-      tip = `Practice exam: answer study guide items and old quiz questions without notes. The real exam is ${mins} minutes${mins > CFG.EXAM_MINUTES ? " with your extended time, so practice using all of it" : ""}. Finish by packing your bag for tomorrow.`;
+      tip = `Practice exam: answer mixed questions from the whole study guide and old quizzes, without notes. The real exam is ${mins} minutes${mins > CFG.EXAM_MINUTES ? " with your extended time" : ""}. Then pack your bag for tomorrow.`;
       if (has("Make a Test Plan") || mp(state, "speed") === "support") extras.push("Start by making a test plan: which sections first and how long for each.");
       if (has("Use a Visual Timer")) extras.push("Use a visual timer.");
       if (has("Pause to Take Feedback")) extras.push("Afterward, pause and review every mistake.");
-    } else if (task.kind === "gear") {
-      tip = "Gather each class's study guide, notes, and old quizzes. Put each class in one folder and upload study guides to Exam Prep HQ.";
+    } else {
+      const set = METHODS[task.kind] || METHODS.quiz;
+      tip = set[kind] || set.general;
+      // Visual learners: swap a written summary for a drawn one.
+      if (task.kind === "rebuild" && strongVisual && (kind === "literature" || kind === "general")) tip = "Turn your notes into a one-page concept map or sketch. Labels and arrows only.";
     }
 
     if (task.kind !== "test" && task.kind !== "gear") {
-      if (subj === "math" && (has("Talk Through Math Problems") || mp(state, "verbal") === "strength")) extras.push("Talk through each step out loud.");
-      else if (subj !== "math" && (has("Say it Aloud to Remember") || mp(state, "verbalMemory") === "strength")) extras.push("Say key ideas out loud as you go.");
+      if (kind === "math" && (has("Talk Through Math Problems") || mp(state, "verbal") === "strength")) extras.push("Talk through each step out loud.");
+      else if (kind !== "math" && (has("Say it Aloud to Remember") || mp(state, "verbalMemory") === "strength")) extras.push("Say key ideas out loud as you go.");
       if ((task.kind === "quiz" || task.kind === "review") && has("Pause to Take Feedback")) extras.push("Pause to look at what you missed before moving on.");
     }
     if (mp(state, "attention") === "support") extras.push("Split this into two short sprints with a movement break.");
