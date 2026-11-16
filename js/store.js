@@ -90,6 +90,13 @@
       if (raw) {
         const saved = JSON.parse(raw);
         if (saved.mindprint && !saved.mindprint.order) delete saved.mindprint; // older format
+        // Older versions allowed numbers; keep only letters.
+        Object.values(saved.classes || {}).forEach(c => {
+          const n = parseFloat(c.grade);
+          if (!isNaN(n)) { const g = CFG.GRADES.find(x => n >= x.min); c.grade = g ? g.letter : ""; }
+          else if (c.grade && !CFG.GRADES.some(x => x.letter === String(c.grade).trim().toUpperCase())) c.grade = "";
+          else if (c.grade) c.grade = String(c.grade).trim().toUpperCase();
+        });
         return merge(freshState(), saved);
       }
     } catch (e) { /* storage blocked or corrupt */ }
@@ -155,14 +162,26 @@
     persistLocal() {
       try { localStorage.setItem(LS_KEY, JSON.stringify(Store.state)); } catch (e) { /* ignore */ }
     },
-    // Accepts "88", "88.5%", or a letter grade like "B+".
-    gradeNum(g) {
-      if (g == null || g === "") return NaN;
-      const s = String(g).trim().toUpperCase().replace("%", "");
-      const n = parseFloat(s);
-      if (!isNaN(n)) return n;
-      const map = { "A+": 98, "A": 95, "A-": 91, "B+": 88, "B": 85, "B-": 81, "C+": 78, "C": 75, "C-": 71, "D+": 68, "D": 65, "D-": 61, "F": 50 };
-      return map[s] !== undefined ? map[s] : NaN;
+    // Grades are letters only. These helpers convert to a number behind the scenes
+    // (the middle of each letter's range). The number is never shown to students.
+    letters() { return CFG.GRADES.map(g => g.letter); },
+    gradeNum(letter) {
+      const list = CFG.GRADES;
+      const i = list.findIndex(g => g.letter === String(letter || "").trim().toUpperCase());
+      if (i === -1) return NaN;
+      const top = i === 0 ? 100 : list[i - 1].min;
+      return list[i].min === 0 ? 55 : (list[i].min + top) / 2;
+    },
+    letterFor(num) {
+      const g = CFG.GRADES.find(x => num >= x.min);
+      return g ? g.letter : CFG.GRADES[CFG.GRADES.length - 1].letter;
+    },
+    // Semester grade projection: (1 - weight) x current + weight x exam. Letters in, letter out.
+    project(currentLetter, examLetter) {
+      const cur = Store.gradeNum(currentLetter), ex = Store.gradeNum(examLetter);
+      if (isNaN(cur) || isNaN(ex)) return "";
+      const w = CFG.EXAM_WEIGHT;
+      return Store.letterFor(cur * (1 - w) + ex * w);
     },
     examMinutes() {
       const a = Store.state.accom;

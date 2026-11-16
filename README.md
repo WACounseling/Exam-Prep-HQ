@@ -6,7 +6,7 @@ A study-planning website for Woodward Academy 7th and 8th graders. Students add 
 
 - **Guided setup (about 5 minutes):** five short screens, one question each.
   1. Name and grade
-  2. How each class is going (grade and a 😵 to 😎 face)
+  2. How each class is going (letter grade and a 😵 to 😎 face)
   3. What's already on their calendar
   4. When they like to study (tap a choice, no typing times)
   5. Extended time and MindPrint (both optional)
@@ -15,7 +15,7 @@ A study-planning website for Woodward Academy 7th and 8th graders. Students add 
 - **Five tabs:**
   - **Today:** just today's sessions with big checkboxes, a progress bar, and badges. It also suggests at most two optional upgrades (add study guides, get Google Calendar reminders, plan a tutorial, add MindPrint) and shows a tip of the day.
   - **My plan:** this week is open and other weeks are folded away. One "Save my plan" button offers Google Calendar, print, and more formats. "Update my plan" rebuilds it and keeps finished sessions.
-  - **My classes:** one row per class that opens to grade, feeling, study guide upload (PDF, Word, or pasted text), topic ratings, and questions for the teacher.
+  - **My classes:** one row per class that opens to letter grade, feeling, study guide upload (PDF, Word, or pasted text), topic ratings, and questions for the teacher. It also has an optional, folded-away "What could my semester grade be?" section.
   - **My week:** tutorials (pick a class and a day; the time is always 3:15 to 3:40 p.m.), busy times, and study times. Detailed settings are under "More options."
   - **Tips:** short cards with one idea and one "Try it" each.
     - Study smarter, Get organized, Test day, Stay balanced, Exam week checklist, Myth or fact
@@ -95,6 +95,9 @@ Everything you'll normally change is in `js/config.js`:
 - `EXAMS`: names, dates (`YYYY-MM-DD`), colors, and icons.
 - `EXAM_MINUTES`: standard exam length (currently 70).
 - `TUTORIAL_START` / `TUTORIAL_END`: tutorial time (currently 3:15 to 3:40 p.m.).
+- `GRADES`: the letter grade scale. Students only pick letters, and percentages are never shown. The lowest percentage for each letter is used only behind the scenes. **Check this against the official scale.**
+- `EXAM_WEIGHT`: how much the exam counts toward the semester grade (currently 20%).
+- `GRADE_PROJECTION`: set to `false` to hide the semester grade projection everywhere.
 - `DRIVE_FOLDER_NAME`: use a new name each semester so students get a fresh folder.
 - `SEMESTER_LABEL`
 
@@ -122,6 +125,13 @@ The header shows "WOODWARD ACADEMY" as text so no logo is recreated. To use the 
 
 In the `exam-prep-hq` folder, run `python3 -m http.server 8000` and open `http://localhost:8000`. To test Google sign-in locally, also add `http://localhost:8000` as an Authorized JavaScript origin.
 
+## Grades and the semester projection
+
+- **Letters only.** Students pick a letter grade from a list (A+ through F, or "Not sure"). They can't type a number, and no percentage is ever shown on screen, in printouts, or in calendar events. Number grades saved by an older version are converted to letters automatically.
+- **Projection (optional).** In each class on My classes, a folded section called "What could my semester grade be?" shows what the semester grade could be with an A, B, C, or D on the exam. It uses (80% × current grade) + (20% × exam grade), converted back to a letter using the `GRADES` scale.
+- **Disclaimer.** Every projection appears beside this note: "This is only a projection. It's based on the grade you entered today. It is not an official grade, and it doesn't guarantee any grade. Your teacher's gradebook is the only official grade."
+- **Approximate by design.** Because only letters are used, results are approximate, often within one plus or minus step.
+
 ## How the study guide reader works
 
 The reader runs entirely in the student's browser and looks at layout, not just words:
@@ -142,7 +152,7 @@ Study instructions change with the kind of topic: grammar, vocabulary, figures o
 ## How the plan is built
 
 1. Open study time = the student's study windows minus their busy blocks, planned tutorials, days off, and free day. Sessions get a 10-minute break after them. Exam days get one fewer session.
-2. Each study guide topic gets 1 to 4 sessions based on confidence (shakier topics get more) and the class grade (below 80 adds one; 93+ with high confidence needs only one).
+2. Each study guide topic gets 1 to 4 sessions based on confidence (shakier topics get more) and the class letter grade (C+ or below adds one; A or A+ with high confidence needs only one).
 3. Sessions for the same topic are spaced at least two days apart and move from **build it** (make a study tool) to **quiz yourself** (retrieval practice) to **mix and teach**.
 4. Each class gets a **practice exam** as close to the day before the exam as possible.
 5. If there's extra time, the shakiest topics get quick reviews, but about 1 in 5 open slots stays free for downtime.

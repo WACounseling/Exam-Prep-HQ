@@ -22,6 +22,24 @@ window.PREP_CONFIG = {
   TUTORIAL_START: "15:15",
   TUTORIAL_END: "15:40",
 
+  // Letter grades. Students only ever pick a letter; percentages are never shown.
+  // "min" is the lowest percentage for each letter and is used only behind the scenes
+  // to plan study time and to project semester grades. Change it to match the official scale.
+  GRADES: [
+    { letter: "A+", min: 97 }, { letter: "A", min: 93 }, { letter: "A-", min: 90 },
+    { letter: "B+", min: 87 }, { letter: "B", min: 83 }, { letter: "B-", min: 80 },
+    { letter: "C+", min: 77 }, { letter: "C", min: 73 }, { letter: "C-", min: 70 },
+    { letter: "D+", min: 67 }, { letter: "D", min: 63 }, { letter: "D-", min: 60 },
+    { letter: "F", min: 0 }
+  ],
+
+  // Semester exams count for this share of the semester grade.
+  EXAM_WEIGHT: 0.20,
+
+  // Show the optional "What could my semester grade be?" projection on My classes.
+  // Set to false to hide it everywhere.
+  GRADE_PROJECTION: true,
+
   // 4) Exam length in minutes (standard time).
   EXAM_MINUTES: 70,
 

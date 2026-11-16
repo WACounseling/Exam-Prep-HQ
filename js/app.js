@@ -38,7 +38,7 @@
     { start: "10:00", end: "17:00", label: "Either one", sub: "10 a.m. to 5 p.m." }
   ];
 
-  const ui = { busyType: "weekly", busyLabel: "", busyOpen: false, openClass: null, showPast: false, flipped: {}, examChecks: {}, mpEdit: false, mpAll: false, sync: "local" };
+  const ui = { openProj: null, busyType: "weekly", busyLabel: "", busyOpen: false, openClass: null, showPast: false, flipped: {}, examChecks: {}, mpEdit: false, mpAll: false, sync: "local" };
 
   const BADGES = [
     { id: "plan", e: "🗺️", name: "Plan made", test: s => !!s.plan },
@@ -133,6 +133,33 @@
   function confButtons(act, current, extra = "") {
     return C.confidence.map(c =>
       `<button type="button" data-act="${act}" data-v="${c.v}" ${extra} aria-pressed="${Number(current) === c.v}" title="${c.label}" aria-label="${c.label}">${c.emoji}</button>`).join("");
+  }
+
+  // Letter grades only: a dropdown, so a number can never be entered.
+  function gradePicker(id, value, label, small) {
+    return `<label class="${small ? "sr-only" : ""}" for="g-${id}">${label}</label>
+      <select id="g-${id}" class="grade-select" data-bind="classes.${id}.grade" data-plan="1" data-rerender="1">
+        <option value="" ${value ? "" : "selected"}>${small ? "Grade" : "Not sure"}</option>
+        ${S.letters().map(l => `<option value="${l}" ${value === l ? "selected" : ""}>${l}</option>`).join("")}
+      </select>`;
+  }
+
+  // Optional, folded-away projection. Letters only, always with the disclaimer.
+  function projection(e) {
+    if (!CFG.GRADE_PROJECTION) return "";
+    const c = st().classes[e.id];
+    const pct = Math.round(CFG.EXAM_WEIGHT * 100);
+    const examLetters = ["A", "B", "C", "D"];
+    const body = c.grade
+      ? `<p class="small" style="margin:0 0 8px">Your grade now: <b>${esc(c.grade)}</b>. If you get this on the exam, your semester grade could be about:</p>
+         <div class="proj">${examLetters.map(x => `<div><span class="xs muted">Exam ${x}</span><b>${esc(S.project(c.grade, x))}</b></div>`).join("")}</div>
+         <p class="xs muted" style="margin:8px 0 0">Your work all semester counts for ${100 - pct}%. The exam counts for ${pct}%.</p>`
+      : `<p class="small muted" style="margin:0">Pick your current grade above to see this.</p>`;
+    return `<details class="more proj-box" ${ui.openProj === e.id ? "open" : ""} data-proj="${e.id}">
+      <summary class="small">What could my semester grade be?</summary>
+      <div class="disclaimer" role="note"><b>This is only a projection.</b> It's based on the grade you entered today. It is not an official grade, and it doesn't guarantee any grade. Your teacher's gradebook is the only official grade.</div>
+      ${body}
+    </details>`;
   }
 
   function gates(small) {
@@ -307,12 +334,12 @@
     const s = st();
     return `
       <h1 id="wiz-h">How are your classes going?</h1>
-      <p class="muted">Tap the face that matches how you feel. Classes you're less sure about get more study time. Don't know your grade? Leave it blank.</p>
+      <p class="muted">Pick your letter grade and tap the face that matches how you feel. Classes you're less sure about get more study time. Not sure of your grade? Skip it.</p>
       <div class="wiz-classes">${CFG.EXAMS.map(e => {
         const c = s.classes[e.id];
         return `<div class="wiz-class" style="${colorVars(e.id)}">
           <div class="wc-name"><span aria-hidden="true">${e.icon}</span><span><b>${esc(S.className(e.id))}</b><span class="xs muted">Exam ${D.pretty(e.date, false)}</span></span></div>
-          <div class="wc-grade"><label class="sr-only" for="g-${e.id}">${esc(S.className(e.id))} grade</label><input id="g-${e.id}" type="text" inputmode="decimal" data-bind="classes.${e.id}.grade" data-plan="1" value="${esc(c.grade)}" placeholder="Grade"></div>
+          <div class="wc-grade">${gradePicker(e.id, c.grade, `${esc(S.className(e.id))} letter grade`, true)}</div>
           <div class="conf" role="group" aria-label="How you feel about ${esc(S.className(e.id))}">${confButtons("class-conf", c.confidence, `data-class="${e.id}"`)}</div>
         </div>`;
       }).join("")}</div>`;
@@ -537,7 +564,7 @@
     const body = !open ? "" : `
       <div class="class-body">
         <div>
-          <div class="field"><label for="g-${e.id}">My grade</label><input id="g-${e.id}" type="text" inputmode="decimal" data-bind="classes.${e.id}.grade" data-plan="1" value="${esc(c.grade)}" placeholder="Like 88 or B+"></div>
+          <div class="field">${gradePicker(e.id, c.grade, "My letter grade", false)}</div>
           <div class="field"><label id="cl-${e.id}">How I feel about this class</label><div class="conf" role="group" aria-labelledby="cl-${e.id}">${confButtons("class-conf", c.confidence, `data-class="${e.id}"`)}</div></div>
           <label class="drop" data-drop="${e.id}">
             <input type="file" accept=".pdf,.docx,.txt,image/*" multiple data-upload="${e.id}">
@@ -545,6 +572,7 @@
           </label>
           ${c.guides.length ? `<ul class="guide-files">${c.guides.map((g, i) => `<li>📄 ${g.link ? `<a href="${esc(g.link)}" target="_blank" rel="noopener">${esc(g.name)}</a>` : esc(g.name)} <button class="icon-btn" data-act="guide-del" data-class="${e.id}" data-i="${i}" aria-label="Remove ${esc(g.name)}">✕</button></li>`).join("")}</ul>` : ""}
           <button class="linkish small" style="margin-top:8px" data-act="paste" data-class="${e.id}">Or paste the text</button>
+          ${projection(e)}
         </div>
         <div>
           <h4>Study guide topics</h4>
@@ -1175,6 +1203,11 @@
     if (el.dataset.mpupload !== undefined && el.files.length) handleMindprint(el.files[0]);
     if (el.dataset.examcheck !== undefined) ui.examChecks[el.dataset.examcheck] = el.checked;
   });
+
+  document.addEventListener("toggle", e => {
+    const d = e.target;
+    if (d.dataset && d.dataset.proj) ui.openProj = d.open ? d.dataset.proj : (ui.openProj === d.dataset.proj ? null : ui.openProj);
+  }, true);
 
   document.addEventListener("input", e => {
     const el = e.target;
