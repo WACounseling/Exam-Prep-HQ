@@ -3,7 +3,9 @@
    ========================================================================== */
 (function () {
   const CFG = window.PREP_CONFIG;
-  const LS_KEY = "examPrepHQ.v1";
+  // Demo mode (add ?demo to the address): a made-up student, stored separately, never synced.
+  const DEMO = new URLSearchParams(location.search).has("demo");
+  const LS_KEY = DEMO ? "examPrepHQ.demo" : "examPrepHQ.v1";
 
   /* ---------- Date helpers (all dates are local YYYY-MM-DD strings) ---------- */
   const D = {
@@ -108,6 +110,7 @@
 
   const Store = {
     D, uid,
+    demo: DEMO,
     state: loadLocal(),
     freshState,
     merge,

@@ -38,7 +38,7 @@
     { start: "10:00", end: "17:00", label: "Either one", sub: "10 a.m. to 5 p.m." }
   ];
 
-  const ui = { openProj: null, busyType: "weekly", busyLabel: "", busyOpen: false, openClass: null, showPast: false, flipped: {}, examChecks: {}, mpEdit: false, mpAll: false, sync: "local" };
+  const ui = { dayChecks: {}, tutClass: null, openProj: null, busyType: "weekly", busyLabel: "", busyOpen: false, openClass: null, showPast: false, flipped: {}, examChecks: {}, mpEdit: false, mpAll: false, sync: "local" };
 
   const BADGES = [
     { id: "plan", e: "🗺️", name: "Plan made", test: s => !!s.plan },
@@ -97,7 +97,71 @@
   }
 
   function openModal(html) { const m = $("#modal"); m.innerHTML = html; if (!m.open) m.showModal(); }
-  function closeModal() { const m = $("#modal"); if (m.open) m.close(); }
+  function closeModal() { clearInterval(breatheTimer); const m = $("#modal"); if (m.open) m.close(); }
+
+  /* ---------- Display settings: text size, easier font, high contrast (saved on this device) ---------- */
+  const DISPLAY_KEY = "examPrepHQ.display";
+  function getDisplay() { try { return Object.assign({ size: "1", font: "default", contrast: "off" }, JSON.parse(localStorage.getItem(DISPLAY_KEY) || "{}")); } catch (e) { return { size: "1", font: "default", contrast: "off" }; } }
+  function applyDisplay() {
+    const d = getDisplay(), root = document.documentElement;
+    root.style.fontSize = `${Number(d.size) * 100}%`;
+    root.classList.toggle("hc", d.contrast === "on");
+    root.classList.toggle("readable", d.font === "readable");
+    if (d.font === "readable" && !document.getElementById("readable-font")) {
+      const l = document.createElement("link");
+      l.id = "readable-font"; l.rel = "stylesheet";
+      l.href = "https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap";
+      document.head.appendChild(l);
+    }
+  }
+  function setDisplay(key, v) {
+    const d = getDisplay(); d[key] = v;
+    try { localStorage.setItem(DISPLAY_KEY, JSON.stringify(d)); } catch (e) { /* ignore */ }
+    applyDisplay();
+  }
+  function displayModal() {
+    const d = getDisplay();
+    const seg = (key, opts) => `<div class="seg">${opts.map(([v, l]) => `<button type="button" data-act="display-set" data-key="${key}" data-v="${v}" aria-pressed="${d[key] === v}">${l}</button>`).join("")}</div>`;
+    openModal(`<div class="modal-body"><h3>Text and display</h3>
+      <div class="field"><label>Text size</label>${seg("size", [["1", "Normal"], ["1.15", "Large"], ["1.3", "Extra large"]])}</div>
+      <div class="field"><label>Font</label>${seg("font", [["default", "Standard"], ["readable", "Easier to read"]])}</div>
+      <div class="field"><label>Contrast</label>${seg("contrast", [["off", "Standard"], ["on", "High contrast"]])}</div>
+      <p class="xs muted">These settings are saved on this device. Tip: tap 🔊 next to any instruction to hear it read aloud.</p></div>
+      <div class="modal-foot"><button class="btn" data-act="modal-close">Done</button></div>`);
+  }
+
+  /* ---------- Demo mode (for advisory): a made-up student, rebuilt fresh with dates from today ---------- */
+  function buildDemo() {
+    const s = st();
+    const today = D.today();
+    const weekdayFrom = n => { let d = D.addDays(today, n); while (D.isWeekend(d)) d = D.addDays(d, 1); return d; };
+    s.profile = { name: "Maya", gradeLevel: "8", langChoice: "World Language", langName: "Spanish" };
+    const t = (text, conf, details = [], resources = []) => ({ id: uid(), text, conf, details, resources });
+    Object.assign(s.classes.english, { grade: "A-", confidence: 4, topics: [
+      t("Grammar", 3, ["Participles", "Gerunds", "Infinitives", "Commas", "Semicolons", "Active/Passive Voice", "Fragments/Run-ons/Comma Splice"], ["Review sheets pgs. 2-5", "Practice sheets in workbook"]),
+      t("Vocabulary", 4, ["Vocabulary from Literature"], ["Pretest pgs. 6-7", "Vocabulary lists"]),
+      t("Literature", 3, ["Shakespeare/The Globe Theater", "The Taming of the Shrew", "“Aucassin and Nicolette”", "“Cupid and Psyche”"], ["Review sheets pgs. 8-11"]),
+      t("Figures of Speech", 2, ["Simile", "Metaphor", "Personification", "Hyperbole", "Alliteration", "Onomatopoeia", "Irony", "Allusion", "Anaphora", "Foreshadowing"], ["Review sheets pg. 12"]),
+      t("Writing", 4, ["One idea paragraph format"], ["Review sheet pgs. 13-14"])] });
+    Object.assign(s.classes.math, { grade: "C+", confidence: 2, questions: "How do I know whether to use substitution or elimination?", topics: [
+      t("Unit 3: Linear Equations", 3, ["Slope", "Graphing lines"]), t("Unit 4: Systems of Equations", 2, ["Substitution", "Elimination", "Word problems"]), t("Unit 5: Functions", 1, ["Function notation", "Domain and range"])] });
+    Object.assign(s.classes.science, { grade: "B", confidence: 3, topics: [t("Cells and organelles", 4), t("Photosynthesis and respiration", 2), t("Genetics and Punnett squares", 3)] });
+    Object.assign(s.classes.social, { grade: "B", confidence: 3 });
+    Object.assign(s.classes.lang, { grade: "A-", confidence: 4 });
+    s.busy = [{ id: uid(), label: "Soccer practice", type: "weekly", days: [1, 3], start: "16:00", end: "17:45" }, { id: uid(), label: "Piano lesson", type: "weekly", days: [4], start: "18:30", end: "19:15" }];
+    s.tutorials = [{ id: uid(), classId: "math", date: weekdayFrom(2), start: CFG.TUTORIAL_START, end: CFG.TUTORIAL_END, done: false }];
+    Object.assign(s.prefs, { startDate: today, weekendStart: "13:00", weekendEnd: "17:00" });
+    s.accom = { extended: "1.5", customMinutes: "" };
+    s.mindprint = { order: { reasoning: ["verbal", "abstract", "spatial"], memory: ["verbalMemory", "visualMemory"], exec: ["workingMemory", "attention", "speed", "flexible"] }, strongest: "reasoning", top: {}, strategies: ["Space Out Studying", "Say it Aloud to Remember", "Quiz Yourself - Active Recall", "Make a Test Plan", "Pace Yourself on Tests", "Pause, Notice, Choose"] };
+    s.onboarded = true;
+    s.plan = window.Planner.generate(s);
+    S.persistLocal();
+  }
+
+  function demoBanner() {
+    return S.demo ? `<div class="demo-banner" role="note"><b>Demo mode:</b> this is a made-up student, Maya. Nothing here is saved to anyone's account.
+      <button class="linkish" data-act="demo-reset">Reset demo</button> <a href="${location.pathname}">Exit demo</a></div>` : "";
+  }
 
   /* ---------- Header ---------- */
   function renderBrand() {
@@ -106,7 +170,7 @@
       : `<span class="brand-text"><span class="brand-school">${esc(CFG.SCHOOL_NAME.toUpperCase())}</span><span class="brand-app">Exam Prep HQ</span></span>`;
   }
 
-  const startOverBtn = `<button class="btn small start-over" data-act="start-over" aria-label="Start over"><span aria-hidden="true">↺</span><span class="so-text">Start over</span></button>`;
+  const startOverBtn = `<button class="btn small start-over" data-act="display" aria-label="Text and display settings"><span aria-hidden="true">Aa</span></button><button class="btn small start-over" data-act="start-over" aria-label="Start over"><span aria-hidden="true">↺</span><span class="so-text">Start over</span></button>`;
 
   function renderAccount() {
     const a = $("#account");
@@ -134,9 +198,21 @@
   }
 
   function confButtons(act, current, extra = "") {
+    const sel = C.confidence.find(c => c.v === Number(current));
     return C.confidence.map(c =>
-      `<button type="button" data-act="${act}" data-v="${c.v}" ${extra} aria-pressed="${Number(current) === c.v}" title="${c.label}" aria-label="${c.label}">${c.emoji}</button>`).join("");
+      `<button type="button" data-act="${act}" data-v="${c.v}" ${extra} aria-pressed="${Number(current) === c.v}" title="${c.label}" aria-label="${c.label}">${c.emoji}</button>`).join("")
+      + `<span class="conf-label" aria-hidden="true">${sel ? sel.label : ""}</span>`;
   }
+
+  // Read text aloud with the browser's built-in voice (free, works offline).
+  function speak(text) {
+    if (!("speechSynthesis" in window)) { toast("Read-aloud isn't available in this browser."); return; }
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.rate = 0.95;
+    window.speechSynthesis.speak(u);
+  }
+  const speakBtn = text => ("speechSynthesis" in window) ? `<button type="button" class="icon-btn speak" data-act="speak" data-text="${esc(text)}" aria-label="Read aloud">🔊</button>` : "";
 
   // Letter grades only: a dropdown, so a number can never be entered.
   function gradePicker(id, value, label, small) {
@@ -180,16 +256,20 @@
     }).join("")}</div>`;
   }
 
-  function sessionCard(x) {
+  function sessionCard(x, opts = {}) {
     const late = !x.done && x.date < D.today();
+    const res = (x.resources || []).slice(0, 3);
+    const startable = !x.done && x.date <= D.today();
     return `<div class="session ${x.done ? "done" : ""}" style="${colorVars(x.classId)}">
       <button class="check" data-act="toggle-session" data-id="${x.id}" aria-pressed="${!!x.done}" aria-label="Mark ${esc(x.title)} done">${x.done ? "✓" : ""}</button>
-      <div>
+      <div class="s-main">
         <div class="time">${D.clock(x.start)} to ${D.clock(x.end)}</div>
         <div class="s-title">${esc(x.title)}</div>
         <div class="s-topic">${esc(x.topicText)}</div>
-        <p class="s-tip">${esc(x.tip)}</p>
-        ${late ? `<p class="xs" style="margin:4px 0 0;color:var(--red)">Missed it? No problem. Tap "Update my plan" and it moves to a new time.</p>` : ""}
+        <p class="s-tip">${esc(x.tip)} ${speakBtn(`${x.title}. ${x.topicText}. ${x.tip}`)}</p>
+        ${res.length ? `<p class="s-use"><b>Use:</b> ${esc(res.join("; "))}</p>` : ""}
+        ${startable || opts.big ? `<button class="btn small start-btn" data-act="focus" data-id="${x.id}">▶ Start</button>` : ""}
+        ${late ? `<p class="xs" style="margin:6px 0 0;color:var(--red)">Missed it? No problem. Tap "Catch me up" and it moves to a new time.</p>` : ""}
       </div>
     </div>`;
   }
@@ -197,6 +277,170 @@
   function tutorialPill(t) {
     const topics = askTopics(t.classId).slice(0, 3);
     return `<div class="tut-pill"><span aria-hidden="true">🙋</span><span><b>${esc(S.className(t.classId))} tutorial, ${D.clock(t.start)}</b>${topics.length ? `<br><span class="small">Ask about: ${esc(topics.join("; "))}</span>` : ""}</span></div>`;
+  }
+
+  /* ======================================================================
+     FOCUS SCREEN: Start -> timer -> check-in -> break
+     ====================================================================== */
+  const focus = { id: null, steps: [], i: 0, end: 0, left: 0, paused: false, timer: null, picked: null, stuck: false };
+
+  function focusSteps(lenMin) {
+    const steps = [];
+    if (st().prefs.extraBreaks) {
+      const n = Math.max(1, Math.ceil(lenMin / 15));
+      const base = Math.floor(lenMin / n), extra = lenMin - base * n;
+      for (let k = 0; k < n; k++) {
+        steps.push({ type: "work", min: base + (k < extra ? 1 : 0), label: n > 1 ? `Sprint ${k + 1} of ${n}` : "Focus time" });
+        if (k < n - 1) steps.push({ type: "mini", min: 5, label: "Short break" });
+      }
+    } else {
+      steps.push({ type: "work", min: lenMin, label: "Focus time" });
+    }
+    steps.push({ type: "checkin" });
+    steps.push({ type: "break", min: 10, label: "Break time" });
+    return steps;
+  }
+
+  function openFocus(id) {
+    const x = st().plan.sessions.find(y => y.id === id);
+    if (!x) return;
+    clearInterval(focus.timer);
+    Object.assign(focus, { id, steps: focusSteps(Number(st().prefs.sessionLen) || 30), i: 0, paused: false, picked: null, stuck: false });
+    startStep();
+    const d = $("#focus");
+    if (!d.open) d.showModal();
+  }
+
+  function startStep() {
+    const step = focus.steps[focus.i];
+    clearInterval(focus.timer);
+    if (step.min) {
+      focus.left = step.min * 60;
+      focus.end = Date.now() + focus.left * 1000;
+      focus.timer = setInterval(tick, 500);
+    }
+    renderFocus();
+  }
+
+  function tick() {
+    if (focus.paused) return;
+    focus.left = Math.max(0, Math.round((focus.end - Date.now()) / 1000));
+    const t = $("#focus .f-time");
+    if (t) t.textContent = mmss(focus.left);
+    const step = focus.steps[focus.i];
+    if (step && step.min) {
+      const bar = $("#focus .f-ring");
+      if (bar) bar.style.setProperty("--p", String(100 - Math.round(100 * focus.left / (step.min * 60))));
+    }
+    if (focus.left <= 0) {
+      clearInterval(focus.timer);
+      if (navigator.vibrate) navigator.vibrate(200);
+      nextStep();
+    }
+  }
+  const mmss = sec => `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`;
+
+  function nextStep() {
+    if (focus.i < focus.steps.length - 1) { focus.i++; startStep(); }
+    else closeFocus();
+  }
+
+  function closeFocus() {
+    clearInterval(focus.timer);
+    if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+    const d = $("#focus");
+    if (d.open) d.close();
+    focus.id = null;
+    render();
+  }
+
+  function renderFocus() {
+    const x = st().plan.sessions.find(y => y.id === focus.id);
+    if (!x) return;
+    const step = focus.steps[focus.i];
+    const res = (x.resources || []).slice(0, 3);
+    const head = `<div class="f-head" style="${colorVars(x.classId)}">
+        <div><div class="f-class">${esc(x.title)}</div><div class="f-topic">${esc(x.topicText)}</div></div>
+        <button class="icon-btn f-close" data-act="focus-close" aria-label="Close">✕</button>
+      </div>`;
+    let body = "";
+    if (step.type === "work") {
+      body = `
+        <p class="f-label">${esc(step.label)}</p>
+        <div class="f-ring" style="--p:0"><span class="f-time" role="timer" aria-live="off">${mmss(focus.left)}</span></div>
+        <div class="f-task"><p><b>What to do:</b> ${esc(x.tip)} ${speakBtn(x.tip)}</p>
+          ${res.length ? `<p class="s-use"><b>Use:</b> ${esc(res.join("; "))}</p>` : ""}</div>
+        <div class="btn-row f-actions">
+          <button class="btn ghost" data-act="focus-pause">${focus.paused ? "▶ Resume" : "⏸ Pause"}</button>
+          <button class="btn" data-act="focus-next">I'm done</button>
+        </div>
+        <p class="f-help"><button class="linkish small" data-act="overwhelmed">Feeling overwhelmed?</button></p>`;
+    } else if (step.type === "mini") {
+      body = `
+        <p class="f-label">${esc(step.label)}</p>
+        <div class="f-ring rest" style="--p:0"><span class="f-time" role="timer">${mmss(focus.left)}</span></div>
+        <p class="f-rest">Stand up, stretch, and get some water. Your next sprint starts when the timer ends.</p>
+        <div class="btn-row f-actions"><button class="btn" data-act="focus-next">Start next sprint now</button></div>`;
+    } else if (step.type === "checkin") {
+      const cls = st().classes[x.classId];
+      const topic = cls && cls.topics.find(t => t.id === x.baseId);
+      const current = focus.picked || (topic ? topic.conf : null);
+      body = `
+        <p class="f-big">Nice work. 🎉</p>
+        <p><b>How does ${topic ? `“${esc(topic.text)}”` : "this topic"} feel now?</b></p>
+        <div class="conf big-conf" role="group" aria-label="How it feels now">${confButtons("focus-feel", current)}</div>
+        <p class="xs muted">Your plan adjusts to your answer: shaky topics get more practice, solid ones get less.</p>
+        ${x.classId !== "general" ? (focus.stuck
+          ? `<div class="note small" style="margin-top:10px">Added to your questions for your teacher. <a href="#week" data-act="focus-tutorial" data-class="${x.classId}">Plan a tutorial</a></div>`
+          : `<p style="margin-top:12px"><button class="btn small ghost" data-act="focus-stuck">🙋 Stuck? Ask my teacher</button></p>`) : ""}
+        <div class="btn-row f-actions"><button class="btn big" data-act="focus-save">Save and take a break</button></div>`;
+    } else {
+      const later = st().plan.sessions.find(y => !y.done && y.date === D.today() && y.id !== focus.id);
+      body = `
+        <p class="f-label">${esc(step.label)}</p>
+        <div class="f-ring rest" style="--p:0"><span class="f-time" role="timer">${mmss(focus.left)}</span></div>
+        <p class="f-rest">Move around, get a snack, look at something far away. You earned it.</p>
+        ${later ? `<p class="small">Up next today: <b>${esc(later.title)}</b> at ${D.clock(later.start)}</p>` : `<p class="small">That's everything for today.</p>`}
+        <div class="btn-row f-actions"><button class="btn" data-act="focus-close">Done</button></div>`;
+    }
+    $("#focus").innerHTML = `<div class="f-wrap">${head}<div class="f-body">${body}</div></div>`;
+    document.title = step.min ? `${mmss(focus.left)} ${step.type === "work" ? "Focus" : "Break"} | Exam Prep HQ` : "Exam Prep HQ";
+  }
+
+  function saveCheckin() {
+    const s = st();
+    const x = s.plan.sessions.find(y => y.id === focus.id);
+    if (!x) return;
+    x.done = true;
+    let changed = false;
+    const cls = s.classes[x.classId];
+    const topic = cls && cls.topics.find(t => t.id === x.baseId);
+    if (topic && focus.picked && Number(topic.conf) !== focus.picked) { topic.conf = focus.picked; changed = true; }
+    save();
+    if (changed) { rebuildQuiet(); toast("Got it. Your plan adjusted to how that topic feels."); }
+    else toast("Session done. Nice work.");
+    nextStep();
+  }
+
+  function saveCheckinIfNeeded() {
+    const x = st().plan && st().plan.sessions.find(y => y.id === focus.id);
+    if (x && !x.done && focus.steps[focus.i] && focus.steps[focus.i].type === "checkin") { focus.i = focus.steps.length - 1; saveCheckin(); }
+  }
+
+  function addStuck(x) {
+    const cls = st().classes[x.classId];
+    if (!cls) return;
+    const line = `Stuck on: ${x.topicText}`;
+    if (!(cls.questions || "").includes(line)) cls.questions = (cls.questions ? cls.questions.trim() + "\n" : "") + line;
+    save();
+  }
+
+  // Rebuild in the background (keeps finished sessions); used by check-ins and Catch me up.
+  function rebuildQuiet() {
+    const s = st();
+    s.plan = window.Planner.generate(s);
+    s.planStale = false;
+    save();
   }
 
   /* ======================================================================
@@ -237,7 +481,7 @@
       todayBody = `<p class="win">😌 No studying today. Enjoy it.</p>`;
     }
     if (next.length && (allDone || !todays.length)) {
-      todayBody += `<h4 style="margin-top:16px">Next up: ${D.pretty(next[0].date)}</h4><div class="sessions">${sessionCard(next[0])}</div>`;
+      todayBody += `<h3 class="h4" style="margin-top:16px">Next up: ${D.pretty(next[0].date)}</h3><div class="sessions">${sessionCard(next[0])}</div>`;
     }
 
     return `
@@ -247,12 +491,14 @@
         ${gates(true)}
       </section>
 
+      ${tourCard()}
       ${s.planStale ? `<div class="warn" style="margin-top:18px">You changed some things. <button class="btn small" data-act="build">Update my plan</button></div>` : ""}
+      ${catchUpBanner()}
+      ${examDayCard()}
 
       <div class="grid today-grid" style="margin-top:20px">
         <section class="panel today-card" aria-labelledby="today-h">
           <h2 id="today-h">Today <span class="muted" style="font-weight:600;font-size:1rem">${D.pretty(today)}</span></h2>
-          ${examToday ? `<div class="exam-pill" style="${colorVars(examToday.id)}">⭐ ${esc(S.className(examToday.id))} exam today. Eat breakfast and use all your time.</div>` : ""}
           ${tutsToday.map(tutorialPill).join("")}
           ${todayBody}
         </section>
@@ -264,6 +510,7 @@
             <p class="small" style="margin:8px 0 0"><b>${doneCount(s)}</b> of ${s.plan.sessions.length} sessions done</p>
             ${s.earnedBadges.length ? `<p class="badge-row" aria-label="Badges earned">${BADGES.filter(b => s.earnedBadges.includes(b.id)).map(b => `<span title="${b.name}">${b.e}</span>`).join("")}</p>` : ""}
           </section>
+          <button class="panel calm-btn" data-act="overwhelmed"><span aria-hidden="true">😮‍💨</span><span><b>Feeling overwhelmed?</b><span class="small">Breathe, add breaks, or talk to someone.</span></span></button>
           ${nudges()}
         </div>
       </div>
@@ -271,12 +518,132 @@
       ${tipOfTheDay()}`;
   }
 
+  function tourCard() {
+    if (st().tourDone) return "";
+    return `<section class="panel tour" aria-labelledby="tour-h" style="margin-top:18px">
+      <h2 id="tour-h" class="h3">3 things to know</h2>
+      <ol class="tour-list">
+        <li><b>Tap ▶ Start</b> on a session. You get a timer, clear steps, and a break.</li>
+        <li><b>Tap a face when you finish.</b> Your plan adjusts to how each topic feels.</li>
+        <li><b>Stuck or stressed?</b> “Ask my teacher” and “Feeling overwhelmed?” are always one tap away.</li>
+      </ol>
+      <button class="btn small" data-act="tour-done">Got it</button>
+    </section>`;
+  }
+
+  function missedSessions() {
+    const s = st();
+    return s.plan ? s.plan.sessions.filter(x => !x.done && x.date < D.today()) : [];
+  }
+
+  function catchUpBanner() {
+    const n = missedSessions().length;
+    if (!n) return "";
+    return `<div class="warn catch" style="margin-top:18px"><span>You have ${n} missed session${n === 1 ? "" : "s"}. That's OK.</span> <button class="btn small" data-act="catch-up">Catch me up</button></div>`;
+  }
+
+  // Night before an exam, and exam morning: a short, calm checklist.
+  function examDayCard() {
+    const today = D.today();
+    const examToday = CFG.EXAMS.find(e => e.date === today);
+    const examTomorrow = CFG.EXAMS.find(e => e.date === D.addDays(today, 1));
+    const mins = S.examMinutes();
+    const extra = mins > CFG.EXAM_MINUTES;
+    const preview = Math.round(mins * 0.07), check = Math.round(mins * 0.15), answer = mins - preview - check;
+    const half = preview + Math.round(answer / 2);
+    const list = (key, items) => `<ul class="checklist">${items.map((t, i) => `<li><label><input type="checkbox" data-daycheck="${key}-${i}" ${ui.dayChecks[`${key}-${i}`] ? "checked" : ""}> ${t}</label></li>`).join("")}</ul>`;
+    let html = "";
+    if (examToday) {
+      html += `<section class="panel day-card" style="${colorVars(examToday.id)}" aria-labelledby="ed-h">
+        <h2 id="ed-h">⭐ ${esc(S.className(examToday.id))} exam today</h2>
+        <p>You've prepared for this. A calm start helps.</p>
+        ${list("morning-" + examToday.id, ["Eat breakfast", "Bring your supplies, water, and a snack", "Know which room you're in", "One slow breath: in for 4, out for 6"])}
+        <p class="small"><b>Your pacing plan for ${mins} minutes${extra ? " (with your extended time)" : ""}:</b> look it over for ${preview} minutes, answer for ${answer}, check for ${check}. Around minute ${half}, you should be about halfway.${extra ? " Use all of your time." : ""}</p>
+        <button class="btn small ghost" data-act="breathe">Breathe with me (1 minute)</button>
+      </section>`;
+    }
+    if (examTomorrow) {
+      html += `<section class="panel day-card" style="${colorVars(examTomorrow.id)}" aria-labelledby="nb-h">
+        <h2 id="nb-h">🌙 ${esc(S.className(examTomorrow.id))} exam tomorrow</h2>
+        <p>Tonight is for a light review and a good night's sleep, not cramming.</p>
+        ${list("night-" + examTomorrow.id, ["Do tonight's practice exam session", "Pack your supplies (pens, pencils, highlighter, calculator if allowed), water, and a snack", "Light review only, nothing new", "Screens off early and lights out on time"])}
+        ${extra ? `<p class="small">Remember: you have <b>${mins} minutes</b>. Plan to use all of them.</p>` : ""}
+      </section>`;
+    }
+    return html ? `<div class="stack" style="margin-top:18px">${html}</div>` : "";
+  }
+
+  function catchUp() {
+    rebuildQuiet();
+    const s = st();
+    const today = D.today();
+    const examIn = id => { const e = S.exam(id); return e ? D.diff(today, e.date) : 99; };
+    const confOf = x => { const c = s.classes[x.classId]; const t = c && c.topics.find(y => y.id === x.baseId); return t ? Number(t.conf) : (c ? Number(c.confidence) : 3); };
+    const seen = new Set();
+    const top = s.plan.sessions.filter(x => !x.done && x.date >= today && x.classId !== "general")
+      .map(x => ({ x, score: examIn(x.classId) + 3 * confOf(x) }))
+      .sort((a, b) => a.score - b.score)
+      .filter(o => { const k = o.x.classId + o.x.baseId; if (seen.has(k)) return false; seen.add(k); return true; })
+      .slice(0, 3).map(o => o.x);
+    render();
+    openModal(`<div class="modal-body"><h3>You're caught up 👍</h3>
+      <p>Missed sessions moved to new times. Finished ones stayed checked off.</p>
+      ${top.length ? `<h4>Short on time? Do these first</h4><p class="small muted">Your shakiest topics for your soonest exams.</p>
+        <ol class="priority">${top.map(x => `<li><b>${esc(x.title)}</b><br><span class="small">${esc(x.topicText)}. ${D.pretty(x.date)}, ${D.clock(x.start)}</span></li>`).join("")}</ol>` : ""}
+      ${s.drive.calendarSyncedAt ? `<p class="small muted">Tip: tap “Update Google Calendar” in Save my plan so your reminders match.</p>` : ""}</div>
+      <div class="modal-foot"><button class="btn" data-act="modal-close">OK</button></div>`);
+  }
+
+  function overwhelmedModal() {
+    const s = st();
+    const next = s.plan && s.plan.sessions.find(x => !x.done && x.date >= D.today());
+    const on = !!s.prefs.extraBreaks;
+    const target = $("#focus").open ? $("#focus") : null;
+    const html = `
+      <div class="modal-body calm">
+        <h3>Feeling overwhelmed? That's normal.</h3>
+        <p class="muted">Lots of students feel this way before exams. Here are a few things that help.</p>
+        <div class="calm-row"><span class="e" aria-hidden="true">🫁</span><div><b>Breathe for one minute</b><p class="small">Slow breathing calms your body down fast.</p><button class="btn small" data-act="breathe">Breathe with me</button></div></div>
+        <div class="calm-row"><span class="e" aria-hidden="true">💬</span><div><b>Talk to someone</b><p class="small">A parent, your advisor, a teacher, or a school counselor. You don't have to handle stress alone, and asking for help is a strong move. If you're having a really hard time, tell an adult today.</p></div></div>
+        <div class="calm-row"><span class="e" aria-hidden="true">☕</span><div><b>Add more breaks</b><p class="small">Same study time, split into 15-minute sprints with 5-minute breaks in between.</p>
+          <button class="btn small ${on ? "" : "ghost"}" data-act="extra-breaks" aria-pressed="${on}">${on ? "✓ Extra breaks are on" : "Turn on extra breaks"}</button></div></div>
+        ${next && !target ? `<div class="calm-row"><span class="e" aria-hidden="true">👣</span><div><b>Just start</b><p class="small">Starting is the hardest part. Begin your next session and focus on the first 5 minutes.</p><button class="btn small ghost" data-act="focus-from-calm" data-id="${next.id}">Start my next session</button></div></div>` : ""}
+      </div>
+      <div class="modal-foot"><button class="btn" data-act="modal-close">Close</button></div>`;
+    openModal(html);
+  }
+
+  // One minute of guided breathing: in for 4, out for 6.
+  let breatheTimer = null;
+  function breathe() {
+    openModal(`<div class="modal-body breathe-box">
+      <div class="breathe-circle" aria-hidden="true"></div>
+      <p class="breathe-text" aria-live="polite">Get comfortable.</p>
+      <p class="small muted breathe-count"></p></div>
+      <div class="modal-foot"><button class="btn ghost" data-act="breathe-stop">Stop</button></div>`);
+    let cycle = 0, t0 = Date.now();
+    clearInterval(breatheTimer);
+    const circle = $(".breathe-circle"), text = $(".breathe-text"), count = $(".breathe-count");
+    const stepFn = () => {
+      const el = (Date.now() - t0) / 1000;
+      const inCycle = el % 10;
+      cycle = Math.floor(el / 10);
+      if (cycle >= 6) { clearInterval(breatheTimer); text.textContent = "Nice. Notice how you feel."; circle.className = "breathe-circle"; count.textContent = ""; return; }
+      const inhale = inCycle < 4;
+      text.textContent = inhale ? `Breathe in… ${4 - Math.floor(inCycle)}` : `Breathe out… ${6 - Math.floor(inCycle - 4)}`;
+      circle.className = "breathe-circle " + (inhale ? "in" : "out");
+      count.textContent = `Breath ${cycle + 1} of 6`;
+    };
+    stepFn();
+    breatheTimer = setInterval(stepFn, 250);
+  }
+
   // Suggest at most two optional upgrades at a time.
   function nudges() {
     const s = st();
     const list = [];
-    const noGuide = CFG.EXAMS.filter(e => !s.classes[e.id].topics.length).length;
-    if (noGuide) list.push({ e: "📄", t: "Add your study guides", d: `So your plan knows exactly what to study. ${5 - noGuide} of 5 added.`, href: "#classes" });
+    const missing = CFG.EXAMS.filter(e => !s.classes[e.id].topics.length && e.date >= D.today()).sort((a, b) => a.date.localeCompare(b.date));
+    if (missing.length) list.push({ e: "📄", t: `Add your ${S.className(missing[0].id)} study guide`, d: `So your plan covers exactly what's on that exam.${missing.length > 1 ? ` (${missing.length - 1} more after that)` : ""}`, href: "#classes", open: missing[0].id });
     if (window.Drive.enabled() && !s.drive.calendarSyncedAt) list.push({ e: "🔔", t: "Get reminders", d: "Put your plan on Google Calendar.", act: "exp-gcal" });
     if (!(s.tutorials || []).length) list.push({ e: "🙋", t: "Plan a tutorial", d: "3:15 to 3:40 p.m. with your teacher.", href: "#week" });
     if (!S.mpIsSet()) list.push({ e: "🧩", t: "Add your MindPrint", d: "Get study tips that fit how you learn.", href: "#tips/mindprint" });
@@ -284,7 +651,7 @@
     return `<section class="panel nudges" aria-labelledby="nudge-h">
       <h3 id="nudge-h">Make your plan even better</h3>
       ${list.slice(0, 2).map(n => n.href
-        ? `<a class="nudge" href="${n.href}"><span class="e" aria-hidden="true">${n.e}</span><span><b>${n.t}</b><span class="small">${n.d}</span></span></a>`
+        ? `<a class="nudge" href="${n.href}" ${n.open ? `data-act="open-class" data-class="${n.open}"` : ""}><span class="e" aria-hidden="true">${n.e}</span><span><b>${n.t}</b><span class="small">${n.d}</span></span></a>`
         : `<button class="nudge" data-act="${n.act}"><span class="e" aria-hidden="true">${n.e}</span><span><b>${n.t}</b><span class="small">${n.d}</span></span></button>`).join("")}
     </section>`;
   }
@@ -488,7 +855,7 @@
       const done = weeks[w].reduce((c, d) => c + plan.sessions.filter(x => x.date === d && x.done).length, 0);
       const label = w === thisWeek ? "This week" : w === D.addDays(thisWeek, 7) ? "Next week" : `Week of ${D.pretty(w, false)}`;
       return `<details class="week" ${open ? "open" : ""}>
-        <summary><h3>${label}</h3><span class="small muted">${done} of ${n} done</span></summary>
+        <summary><h2 class="h3">${label}</h2><span class="small muted">${done} of ${n} done</span></summary>
         ${weeks[w].map(dayHTML).join("")}
       </details>`;
     };
@@ -500,6 +867,7 @@
         <button class="btn ghost" data-act="build">🔄 Update my plan</button>
       </div>
       ${s.planStale ? `<div class="warn">You changed some things. Tap <b>Update my plan</b> to catch up. Finished sessions stay checked off.</div>` : ""}
+      ${catchUpBanner()}
       ${calendarStale() ? `<div class="warn">Your Google Calendar has an old version. <button class="linkish" data-act="exp-gcal">Update it</button></div>` : ""}
       ${plan.warnings.map(w => `<div class="warn">${esc(w)}</div>`).join("")}
       ${past.length ? `<p class="no-print"><button class="linkish small" data-act="toggle-past">${ui.showPast ? "Hide" : "Show"} past weeks</button></p>${ui.showPast ? past.map(w => weekHTML(w, false)).join("") : ""}` : ""}
@@ -523,6 +891,7 @@
         <div class="save-options">
           ${on ? `<button class="dl featured" data-act="exp-gcal"><span class="e" aria-hidden="true">🔔</span><b>${st().drive.calendarSyncedAt ? "Update" : "Add to"} Google Calendar</b><span>Get a reminder before every session.</span></button>` : ""}
           <button class="dl" data-act="exp-print"><span class="e" aria-hidden="true">🖨️</span><b>Print it</b><span>Or save it as a PDF.</span></button>
+          <button class="dl" data-act="share"><span class="e" aria-hidden="true">📤</span><b>Share with a parent or advisor</b><span>So they know when you're studying.</span></button>
         </div>
         <details class="more">
           <summary class="small">More ways to save</summary>
@@ -548,6 +917,7 @@
           <button class="dl danger" data-act="erase-ask" ${hasAnything ? "" : "disabled"}><span class="e" aria-hidden="true">🗑️</span><b>Erase everything</b><span>Clear all classes, study guides, busy times, tutorials, MindPrint, and your plan. Start completely fresh.</span></button>
         </div>
       </div>
+      <p class="xs muted" style="padding:0 24px">Teachers: <a href="${location.pathname}?demo" target="_blank" rel="noopener">open a demo student</a> to show the site in advisory.</p>
       <div class="modal-foot"><button class="btn ghost" data-act="modal-close">Cancel</button></div>`);
   }
 
@@ -570,6 +940,40 @@
     location.hash = "#today";
     render();
     toast("Everything's cleared. Tap “Make my plan” to start fresh.");
+  }
+
+  function shareModal() {
+    const on = window.Drive.enabled(), signedIn = !!window.Drive.user;
+    if (!on) {
+      openModal(`<div class="modal-body"><h3>Share my plan</h3>
+        <p>Print your plan or download it as a Word file, then give it to a parent or email it to your advisor.</p>
+        <div class="btn-row"><button class="btn" data-act="exp-print">🖨️ Print it</button><button class="btn ghost" data-act="exp-word">📄 Word file</button></div></div>
+        <div class="modal-foot"><button class="btn ghost" data-act="modal-close">Close</button></div>`);
+      return;
+    }
+    openModal(`<form method="dialog"><div class="modal-body"><h3>Share my plan</h3>
+      <p>We'll make a Google Doc of your plan and share it with them. They can see it but not change it.</p>
+      ${signedIn ? "" : `<p class="small muted">You'll be asked to sign in with Google first.</p>`}
+      <label for="share-email">Their email address</label>
+      <input id="share-email" type="email" required autocomplete="email" placeholder="parent@example.com">
+      <p class="xs muted" style="margin-top:6px">Your school may only allow sharing with school email addresses. If it doesn't work, print it instead.</p></div>
+      <div class="modal-foot"><button class="btn ghost" type="button" data-act="modal-close">Cancel</button><button class="btn" type="submit">Share</button></div></form>`);
+    $("#modal form").addEventListener("submit", async ev => {
+      ev.preventDefault();
+      const email = $("#share-email").value.trim();
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { toast("Check the email address."); return; }
+      try {
+        if (!window.Drive.user) await signIn(false);
+        if (!window.Drive.user) return;
+        toast("Sharing...");
+        const doc = await window.Exports.googleDoc();
+        await window.Drive.shareWith(doc.id, email);
+        openModal(`<div class="modal-body"><h3>Shared 📤</h3><p>${esc(email)} will get an email with a link to your plan. If you update your plan later, share it again so they see the newest version.</p></div>
+          <div class="modal-foot"><button class="btn" data-act="modal-close">OK</button></div>`);
+      } catch (err) {
+        toast(/domain|permission|forbidden|not allowed/i.test(err.message) ? "Your school doesn't allow sharing with that address. Try printing it instead." : `Couldn't share: ${err.message}`);
+      }
+    });
   }
 
   function buildPlan() {
@@ -612,10 +1016,10 @@
           ${projection(e)}
         </div>
         <div>
-          <h4>Study guide topics</h4>
+          <h2 class="h4">Study guide topics</h2>
           ${c.topics.length ? `<p class="xs muted" style="margin:-4px 0 6px">Tap a face for each one. Shaky topics get more practice.</p><ul class="topics">${c.topics.map(t => `
             <li class="topic">
-              <span class="topic-name"><input type="text" value="${esc(t.text)}" data-topic="${e.id}|${t.id}" aria-label="Topic name">${(t.details || []).length ? `<span class="topic-details">${esc(t.details.join(", "))}</span>` : ""}</span>
+              <span class="topic-name"><input type="text" value="${esc(t.text)}" data-topic="${e.id}|${t.id}" aria-label="Topic name">${(t.details || []).length ? `<span class="topic-details">${esc(t.details.join(", "))}</span>` : ""}${(t.resources || []).length ? `<span class="topic-details"><b>Use:</b> ${esc(t.resources.join("; "))}</span>` : ""}</span>
               <div class="conf" role="group" aria-label="How you feel about ${esc(t.text)}">${confButtons("topic-conf", t.conf, `data-class="${e.id}" data-id="${t.id}"`)}</div>
               <button class="icon-btn" data-act="topic-del" data-class="${e.id}" data-id="${t.id}" aria-label="Delete ${esc(t.text)}">🗑️</button>
             </li>`).join("")}</ul>` : `<p class="small muted">Upload your study guide and we'll find the topics. Or type them below.</p>`}
@@ -663,10 +1067,10 @@
       <div class="page-head"><h1>My week</h1><p>Tell your plan what's going on, and it works around it.</p></div>
 
       <section class="panel" aria-labelledby="tut-h">
-        <div class="panel-title"><h3 id="tut-h">🙋 Tutorials <span class="small muted" style="font-weight:500">${tutTime}</span></h3></div>
+        <div class="panel-title"><h2 class="h3" id="tut-h">🙋 Tutorials <span class="small muted" style="font-weight:500">${tutTime}</span></h2></div>
         <form class="tut-form" data-tutform>
           <div class="field"><label for="t-class">Which class?</label>
-            <select id="t-class">${CFG.EXAMS.map(e => `<option value="${e.id}">${esc(S.className(e.id))}</option>`).join("")}</select></div>
+            <select id="t-class">${CFG.EXAMS.map(e => `<option value="${e.id}" ${ui.tutClass === e.id ? "selected" : ""}>${esc(S.className(e.id))}</option>`).join("")}</select></div>
           <div class="field"><label for="t-date">Which day?</label><input id="t-date" type="date" min="${today}" max="${lastExam}" required></div>
           <button class="btn" type="submit">Add tutorial</button>
         </form>
@@ -679,13 +1083,13 @@
       </section>
 
       <section class="panel" style="margin-top:20px" aria-labelledby="busy-h">
-        <div class="panel-title"><h3 id="busy-h">📅 Busy times</h3></div>
+        <div class="panel-title"><h2 class="h3" id="busy-h">📅 Busy times</h2></div>
         <p class="small muted">Practices, rehearsals, lessons, family plans.</p>
         ${busyEditor()}
       </section>
 
       <section class="panel" style="margin-top:20px" aria-labelledby="study-h">
-        <div class="panel-title"><h3 id="study-h">📚 When I study</h3></div>
+        <div class="panel-title"><h2 class="h3" id="study-h">📚 When I study</h2></div>
         ${studyTimeChoices()}
         <details class="more">
           <summary class="small">More options</summary>
@@ -742,7 +1146,7 @@
     const topics = CFG.EXAMS.map(e => ({ e, list: askTopics(e.id).slice(0, 3) })).filter(x => x.list.length);
     return `
       <p class="lead">${esc(T.intro)} They're ${D.clock(CFG.TUTORIAL_START)} to ${D.clock(CFG.TUTORIAL_END)}</p>
-      <div class="phases">${T.phases.map(ph => `<section class="panel phase"><h3><span aria-hidden="true">${ph.emoji}</span> ${esc(ph.title)}</h3><ul>${ph.items.map(i => `<li>${esc(i)}</li>`).join("")}</ul></section>`).join("")}</div>
+      <div class="phases">${T.phases.map(ph => `<section class="panel phase"><h2 class="h3"><span aria-hidden="true">${ph.emoji}</span> ${esc(ph.title)}</h2><ul>${ph.items.map(i => `<li>${esc(i)}</li>`).join("")}</ul></section>`).join("")}</div>
       <div class="grid two" style="margin-top:20px;align-items:start">
         <section class="panel"><h3>Topics to ask about</h3>
           ${topics.length ? topics.map(x => `<div class="ask" style="${colorVars(x.e.id)}"><b>${esc(S.className(x.e.id))}</b><ul>${x.list.map(t => `<li>${esc(t)}</li>`).join("")}</ul></div>`).join("")
@@ -774,7 +1178,7 @@
         ${a.extended === "custom" ? `<div class="field"><label for="cm">Minutes per exam</label><input id="cm" type="number" min="${base}" max="300" data-bind="accom.customMinutes" data-plan="1" data-rerender="1" value="${esc(a.customMinutes)}" style="max-width:140px"></div>` : ""}
         <p class="xs muted">Not sure? Ask your advisor.</p>
         <div class="bignum">${total} minutes</div>
-        <h4 style="margin-top:14px">Your pacing plan</h4>
+        <h2 class="h4" style="margin-top:14px">Your pacing plan</h2>
         <div class="pace" role="img" aria-label="Look over ${preview} minutes, answer ${answer} minutes, check ${check} minutes">
           <div class="p1" style="flex:${preview}">${preview}m</div><div class="p2" style="flex:${answer}">Answer: ${answer} min</div><div class="p3" style="flex:${check}">Check ${check}m</div>
         </div>
@@ -855,17 +1259,17 @@
     return `
       ${superSkill ? `<div class="superpower"><span class="sp-emoji" aria-hidden="true">${superSkill.icon}</span><div><b>Your superpower: ${esc(superSkill.name)}</b><span class="small">When you're stuck, start here.</span></div></div>` : ""}
       <div class="pb-cols">
-        <div><h3 class="pb-sub">Lean on these</h3><ul class="pb-simple">${doms.map(d => {
+        <div><h2 class="pb-sub h3">Lean on these</h2><ul class="pb-simple">${doms.map(d => {
           const sk = MP.skills[m.order[d.id][0]];
           return `<li><b>${esc(sk.name)}:</b> ${esc(sk.strength[0])}</li>`;
         }).join("")}</ul></div>
-        <div><h3 class="pb-sub">Work around these</h3><ul class="pb-simple">${doms.map(d => {
+        <div><h2 class="pb-sub h3">Work around these</h2><ul class="pb-simple">${doms.map(d => {
           const list = m.order[d.id];
           const sk = MP.skills[list[list.length - 1]];
           return `<li><b>${esc(sk.name)}:</b> ${esc(sk.support[0])}</li>`;
         }).join("")}</ul></div>
       </div>
-      ${known.length ? `<h3 class="pb-sub">From your report, for exam day</h3>
+      ${known.length ? `<h2 class="pb-sub h3">From your report, for exam day</h2>
         <ul class="strat-list">${shown.map(k => `<li><b>${esc(k.name)}</b><span>${esc(k.use)}</span></li>`).join("")}</ul>
         ${known.length > 3 ? `<button class="linkish small" data-act="mp-all">${ui.mpAll ? "Show less" : `Show all ${known.length}`}</button>` : ""}` : ""}
       <p class="small muted" style="margin-top:12px">Your study sessions already include these ideas.</p>`;
@@ -911,7 +1315,7 @@
           <h3>We found ${fresh.length} topic${fresh.length === 1 ? "" : "s"}</h3>
           <p class="muted">Uncheck anything that isn't really a topic. You can rename them after.</p>
           <ul class="pick-list">${fresh.map((t, i) => `<li><label><input type="checkbox" name="t" value="${i}" checked>
-            <span><b>${esc(t.text)}</b>${t.details.length ? `<br><span class="small muted">${esc(t.details.join(", "))}</span>` : ""}</span></label></li>`).join("")}</ul>
+            <span><b>${esc(t.text)}</b>${t.details.length ? `<br><span class="small muted">${esc(t.details.join(", "))}</span>` : ""}${(t.resources || []).length ? `<br><span class="xs"><b>Use:</b> ${esc(t.resources.join("; "))}</span>` : ""}</span></label></li>`).join("")}</ul>
         </div>
         <div class="modal-foot"><button class="btn ghost" type="button" data-act="modal-close">Cancel</button><button class="btn" type="submit">Add them</button></div>
       </form>`);
@@ -919,7 +1323,7 @@
       ev.preventDefault();
       const picks = $$("#modal input[name=t]:checked").map(i => fresh[Number(i.value)]);
       const c = st().classes[classId];
-      picks.forEach(t => c.topics.push({ id: uid(), text: t.text, details: t.details || [], conf: Number(c.confidence) || 3 }));
+      picks.forEach(t => c.topics.push({ id: uid(), text: t.text, details: t.details || [], resources: t.resources || [], conf: Number(c.confidence) || 3 }));
       closeModal();
       save({ planInputs: true });
       render();
@@ -1058,7 +1462,7 @@
     document.body.classList.toggle("in-setup", r.page === "start");
     const html = r.page === "today" ? pageToday() : r.page === "plan" ? pagePlan() : r.page === "classes" ? pageClasses()
       : r.page === "week" ? pageWeek() : r.page === "tips" ? pageTips(r.sub) : pageStart(r.sub);
-    $("#main").innerHTML = html;
+    $("#main").innerHTML = demoBanner() + html;
     const tab = TABS.find(x => x.id === r.page);
     document.title = `${tab ? tab.label : "Make my plan"} | Exam Prep HQ`;
     bindDrops();
@@ -1173,7 +1577,37 @@
       case "erase-ask": eraseConfirm(); break;
       case "erase-all": eraseAll(); break;
 
+      case "focus": openFocus(el.dataset.id); break;
+      case "tour-done": s.tourDone = true; save(); render(); break;
+      case "catch-up": catchUp(); break;
+      case "overwhelmed": overwhelmedModal(); break;
+      case "breathe": breathe(); break;
+      case "breathe-stop": clearInterval(breatheTimer); closeModal(); break;
+      case "extra-breaks":
+        s.prefs.extraBreaks = !s.prefs.extraBreaks;
+        if (s.plan) rebuildQuiet(); else save();
+        toast(s.prefs.extraBreaks ? "Extra breaks are on. Same study time, more breathing room." : "Extra breaks are off.");
+        overwhelmedModal();
+        if ($("#focus").open) { const cur = focus.steps[focus.i]; if (cur && cur.type === "work" && focus.i === 0) { focus.steps = focusSteps(Number(s.prefs.sessionLen) || 30); startStep(); } }
+        break;
+      case "focus-from-calm": closeModal(); openFocus(el.dataset.id); break;
+      case "open-class": ui.openClass = el.dataset.class; break;
+      case "focus-close": closeFocus(); break;
+      case "focus-next": nextStep(); break;
+      case "focus-pause":
+        focus.paused = !focus.paused;
+        if (!focus.paused) focus.end = Date.now() + focus.left * 1000;
+        renderFocus(); break;
+      case "focus-feel": focus.picked = Number(el.dataset.v); renderFocus(); { const b = $(`#focus [data-act="focus-feel"][data-v="${el.dataset.v}"]`); if (b) b.focus(); } break;
+      case "focus-stuck": { const x = s.plan.sessions.find(y => y.id === focus.id); if (x) addStuck(x); focus.stuck = true; renderFocus(); break; }
+      case "focus-save": saveCheckin(); break;
+      case "focus-tutorial": e.preventDefault(); ui.tutClass = el.dataset.class; saveCheckinIfNeeded(); closeFocus(); location.hash = "#week"; break;
+      case "speak": e.stopPropagation(); speak(el.dataset.text); break;
       case "save-menu": saveMenu(); break;
+      case "share": shareModal(); break;
+      case "display": displayModal(); break;
+      case "display-set": setDisplay(el.dataset.key, el.dataset.v); displayModal(); break;
+      case "demo-reset": localStorage.removeItem("examPrepHQ.demo"); location.reload(); break;
       case "exp-print": try { window.Exports.print(); } catch (err) { toast(err.message); } break;
       case "exp-word": window.Exports.word(); toast("Downloaded."); break;
       case "exp-csv": window.Exports.csv(); toast("Downloaded."); break;
@@ -1241,6 +1675,7 @@
     if (el.dataset.upload && el.files.length) handleFiles(el.dataset.upload, Array.from(el.files));
     if (el.dataset.mpupload !== undefined && el.files.length) handleMindprint(el.files[0]);
     if (el.dataset.examcheck !== undefined) ui.examChecks[el.dataset.examcheck] = el.checked;
+    if (el.dataset.daycheck !== undefined) ui.dayChecks[el.dataset.daycheck] = el.checked;
   });
 
   document.addEventListener("toggle", e => {
@@ -1343,8 +1778,12 @@
     renderAccount();
   });
 
+  $("#focus").addEventListener("cancel", ev => { ev.preventDefault(); closeFocus(); });
+
   /* ---------- Start ---------- */
   window.addEventListener("hashchange", render);
+  applyDisplay();
+  if (S.demo && !st().plan) buildDemo();
   renderBrand();
   render();
   if (window.Drive.enabled()) window.Drive.init().catch(() => {});

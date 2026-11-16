@@ -638,3 +638,104 @@ details.more > summary { cursor: pointer; font-weight: 700; color: var(--focus);
 .dl.danger:not(:disabled):hover { border-color: var(--red); background: #fbf1f3; }
 .danger-btn { background: #7d0a1c; border-color: #7d0a1c; }
 @media (max-width: 600px) { .start-over { padding: 5px 10px; font-size: .8rem; min-height: 32px; } .account .sync { display: none; } }
+
+/* ======================================================================
+   SESSION CARD EXTRAS
+   ====================================================================== */
+.s-main { min-width: 0; }
+.s-use { font-size: var(--fs-sm); margin: 6px 0 0; }
+.s-use b { color: var(--c, var(--red)); }
+.start-btn { margin-top: 10px; background: var(--c, var(--red)); border-color: var(--c, var(--red)); }
+.start-btn:hover { filter: brightness(.9); background: var(--c, var(--red)); border-color: var(--c, var(--red)); }
+.speak { font-size: 1rem; min-width: 32px; min-height: 32px; padding: 2px 6px; vertical-align: middle; }
+.conf { flex-wrap: wrap; align-items: center; }
+.conf-label { font-size: var(--fs-xs); font-weight: 700; color: var(--muted); margin-left: 6px; min-width: 5.5em; }
+
+/* ======================================================================
+   FOCUS SCREEN
+   ====================================================================== */
+dialog.focus { width: 100%; max-width: 640px; border-radius: var(--r-lg); padding: 0; }
+dialog.focus::backdrop { background: rgba(13, 43, 70, .8); }
+.f-head { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; padding: 18px 22px; background: var(--tint); border-bottom: 5px solid var(--c); }
+.f-class { font-weight: 800; font-size: 1.15rem; color: var(--c); }
+.f-topic { font-weight: 600; }
+.f-close { font-size: 1.2rem; }
+.f-body { padding: 22px; text-align: center; }
+.f-body p { margin-left: auto; margin-right: auto; }
+.f-label { font-weight: 700; color: var(--muted); margin-bottom: 8px; }
+.f-ring { --p: 0; width: 190px; height: 190px; border-radius: 50%; margin: 0 auto 16px; display: grid; place-items: center;
+  background: conic-gradient(var(--red) calc(var(--p) * 1%), var(--mist) 0); }
+.f-ring.rest { background: conic-gradient(#2f7d52 calc(var(--p) * 1%), var(--mist) 0); }
+.f-time { width: 150px; height: 150px; border-radius: 50%; background: var(--white); display: grid; place-items: center; font-size: 2.6rem; font-weight: 800; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.f-task { text-align: left; background: var(--mist); border-radius: var(--r-md); padding: 12px 16px; }
+.f-task p { margin: 0 0 6px; }
+.f-actions { justify-content: center; margin-top: 16px; }
+.f-help { margin-top: 12px; }
+.f-big { font-size: 1.6rem; font-weight: 800; color: var(--red); margin-bottom: 8px; }
+.f-rest { max-width: 40ch; }
+.big-conf { justify-content: center; margin: 8px 0 4px; }
+.big-conf button { font-size: 2rem; min-width: 56px; min-height: 56px; }
+.big-conf .conf-label { width: 100%; text-align: center; margin: 4px 0 0; font-size: var(--fs-sm); }
+
+/* ======================================================================
+   TODAY EXTRAS
+   ====================================================================== */
+.tour { border-left: 8px solid var(--focus); }
+.tour-list { margin: 0 0 12px; padding-left: 1.3em; }
+.tour-list li { margin-bottom: 6px; }
+.catch { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; }
+.day-card { border-left: 8px solid var(--c); background: var(--tint); }
+.day-card h2 { color: var(--c); font-size: 1.4rem; }
+.calm-btn { display: flex; gap: 12px; align-items: center; text-align: left; cursor: pointer; width: 100%; font: inherit; color: inherit; }
+.calm-btn > span:first-child { font-size: 1.8rem; }
+.calm-btn b { display: block; }
+.calm-btn:hover { border-color: #2f7d52; }
+.calm-row { display: grid; grid-template-columns: 40px 1fr; gap: 10px; padding: 12px 0; border-top: 1px solid var(--line); }
+.calm-row .e { font-size: 1.7rem; }
+.calm-row p { margin: 2px 0 8px; }
+.priority { padding-left: 1.2em; }
+.priority li { margin-bottom: 8px; }
+.breathe-box { text-align: center; padding: 30px 24px; }
+.breathe-circle { width: 120px; height: 120px; border-radius: 50%; margin: 10px auto 18px; background: radial-gradient(circle, #6fccdd, #006097);
+  transform: scale(.6); transition: transform 4s ease-in-out; }
+.breathe-circle.in { transform: scale(1); transition-duration: 4s; }
+.breathe-circle.out { transform: scale(.6); transition-duration: 6s; }
+.breathe-text { font-size: 1.4rem; font-weight: 800; margin-bottom: 4px; }
+.demo-banner { background: #e3eef6; border-left: 6px solid var(--focus); border-radius: var(--r-sm); padding: 10px 14px; margin-bottom: 16px; font-size: var(--fs-sm); }
+
+/* ======================================================================
+   DISPLAY SETTINGS
+   ====================================================================== */
+html.readable body, html.readable button, html.readable input, html.readable select, html.readable textarea { font-family: "Atkinson Hyperlegible", Verdana, Arial, sans-serif; letter-spacing: .01em; }
+html.hc { --muted: #1f2a35; --line: #6b7785; --mist: #ffffff; }
+html.hc body { color: #000; background: #fff; }
+html.hc .panel, html.hc .session, html.hc .class-card, html.hc .tip-item, html.hc details.week, html.hc .nudge, html.hc .tip-card, html.hc .choice { border: 2px solid #000; }
+html.hc a, html.hc .linkish { text-decoration: underline; text-decoration-thickness: 2px; }
+html.hc .s-tip, html.hc .muted, html.hc .xs, html.hc .small { color: #000; }
+html.hc .conf button { filter: none; opacity: .55; }
+html.hc .conf button[aria-pressed="true"] { opacity: 1; outline: 3px solid #000; }
+html.hc .tab { color: #fff; }
+
+/* ======================================================================
+   PHONES: tabs at the bottom, easy to reach with a thumb
+   ====================================================================== */
+@media (max-width: 700px) {
+  .tabs { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; padding-bottom: env(safe-area-inset-bottom); box-shadow: 0 -2px 10px rgba(0,0,0,.15); }
+  .tabs-inner { justify-content: space-around; padding: 0; overflow: visible; }
+  .tab { flex-direction: column; gap: 2px; padding: 8px 4px 9px; font-size: .72rem; border-bottom: 0; border-top: 4px solid transparent; flex: 1; justify-content: center; text-align: center; }
+  .tab span[aria-hidden] { font-size: 1.25rem; }
+  .tab[aria-current="page"] { border-top-color: var(--yellow); background: rgba(255,255,255,.08); }
+  body { padding-bottom: 76px; }
+  body.in-setup { padding-bottom: 0; }
+  .toast { bottom: 90px; }
+  dialog.focus { max-width: none; width: 100%; height: 100%; max-height: none; margin: 0; border-radius: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .breathe-circle, .breathe-circle.in, .breathe-circle.out { transition: none; }
+}
+
+/* Heading levels for screen readers, sizes for the eye */
+h2.h3 { font-size: var(--fs-lg); font-weight: 700; color: inherit; margin: 0 0 .5em; }
+h2.h4, h3.h4 { font-size: var(--fs-md); font-weight: 700; color: inherit; margin: 0 0 .5em; }
+.pb-sub.h3 { color: var(--red); font-size: 1.1rem; margin-top: 14px; }
+details.week > summary h2 { margin: 0; color: var(--navy); }

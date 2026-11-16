@@ -288,22 +288,29 @@
       });
       if (merged.length < 2) continue;
 
-      const topics = merged.map((l, i) => {
-        const top = l.y + l.size;
-        const bottom = merged[i + 1] ? merged[i + 1].y + merged[i + 1].size : -Infinity;
-        const cells = below.filter(r => r.x >= col2 - 20 && r.x < col3 - 15 && r.y <= top && r.y > bottom)
-          .sort((a, b) => (b.y - a.y) || (a.x - b.x));
+      // Turn the runs in one table cell into a list (bullets start new items; other lines continue them).
+      const cellList = cells => {
         const hasBullets = cells.some(c => BULLET.test(c.text));
-        const details = [];
+        const out = [];
         let fresh = true;
         cells.forEach(c => {
           if (/^[❖•●○◦▪■□✓✔➢►▶✦★◆◇]$/.test(c.text)) { fresh = true; return; }
           const isNew = !hasBullets || fresh || BULLET.test(c.text);
           const t = c.text.replace(BULLET, "");
-          if (isNew || !details.length) details.push(t); else details[details.length - 1] += " " + t;
+          if (isNew || !out.length) out.push(t); else out[out.length - 1] += " " + t;
           fresh = false;
         });
-        return { text: clean(unCaps(l.text)), details: details.map(d => capFirst(clean(d))).filter(Boolean) };
+        return out.map(d => capFirst(clean(d))).filter(Boolean);
+      };
+      const topics = merged.map((l, i) => {
+        const top = l.y + l.size;
+        const bottom = merged[i + 1] ? merged[i + 1].y + merged[i + 1].size : -Infinity;
+        const inRow = r => r.y <= top && r.y > bottom;
+        const sortRuns = (a, b) => (b.y - a.y) || (a.x - b.x);
+        const details = cellList(below.filter(r => r.x >= col2 - 20 && r.x < col3 - 15 && inRow(r)).sort(sortRuns));
+        // Third column ("How to study"): what to use when studying this section.
+        const resources = col3 === Infinity ? [] : cellList(below.filter(r => r.x >= col3 - 15 && inRow(r)).sort(sortRuns));
+        return { text: clean(unCaps(l.text)), details, resources };
       });
       return topics;
     }
@@ -398,7 +405,8 @@
           const body = /^(sections?|topics?|units?|content|areas?|skills?)\b|\bon the exam\b/i.test(first) ? rows.slice(1) : rows;
           table = body.map(tr => {
             const c = tr.children;
-            return c.length >= 2 ? { text: clean(unCaps(c[0].textContent.trim())), details: cellLines(c[1]).map(d => capFirst(clean(d.replace(BULLET, "")))).filter(Boolean) } : null;
+            const list = td => td ? cellLines(td).map(d => capFirst(clean(d.replace(BULLET, "")))).filter(Boolean) : [];
+            return c.length >= 2 ? { text: clean(unCaps(c[0].textContent.trim())), details: list(c[1]), resources: list(c[2]) } : null;
           }).filter(t => t && t.text && words(t.text) <= 6);
         }
         return;

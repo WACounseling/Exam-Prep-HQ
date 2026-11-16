@@ -23,7 +23,7 @@
 
   const Drive = {
     user: null,
-    enabled: () => !!CFG.GOOGLE_CLIENT_ID,
+    enabled: () => !!CFG.GOOGLE_CLIENT_ID && !window.Store.demo,
     signedIn: () => !!token && Date.now() < tokenExpires,
 
     loadLibrary() {
@@ -242,6 +242,14 @@
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(ev)
       }));
       return events.length;
+    },
+
+    // Share a file Exam Prep HQ made (like the plan's Google Doc) with someone, read-only.
+    async shareWith(fileId, email) {
+      return Drive.api(`${API}/files/${fileId}/permissions?sendNotificationEmail=true&emailMessage=${encodeURIComponent("Here's my exam study plan from Exam Prep HQ.")}`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "user", role: "reader", emailAddress: email })
+      });
     },
 
     folderLink() {

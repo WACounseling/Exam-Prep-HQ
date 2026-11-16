@@ -47,7 +47,7 @@ window.PREP_CONFIG = {
   //    Keep the "id" values the same.
   EXAMS: [
     { id: "english", name: "English",                      short: "English",  date: "2026-12-11", color: "#006097", tint: "#e3eef6", icon: "📖" },
-    { id: "science", name: "Science",                      short: "Science",  date: "2026-12-14", color: "#2f7d52", tint: "#e4f3ea", icon: "🔬" },
+    { id: "science", name: "Science",                      short: "Science",  date: "2026-12-14", color: "#25683f", tint: "#e4f3ea", icon: "🔬" },
     { id: "social",  name: "Social Studies / History",     short: "History",  date: "2026-12-15", color: "#a14f0f", tint: "#fbeadb", icon: "🌎" },
     { id: "math",    name: "Math",                         short: "Math",     date: "2026-12-16", color: "#007380", tint: "#dff3f4", icon: "📐" },
     { id: "lang",    name: "World Language or Literature", short: "Lang/Lit", date: "2026-12-18", color: "#5a0207", tint: "#f6e3e1", icon: "🗣️" }

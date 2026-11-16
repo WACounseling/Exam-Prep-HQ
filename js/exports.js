@@ -45,7 +45,7 @@
       const busy = busyFor(day.date).map(b =>
         `<tr><td style="border:1px solid #ccc;padding:6px;color:#555;">${D.clock(b.start)}</td><td style="border:1px solid #ccc;padding:6px;color:#555;" colspan="2">${esc(b.label || "Busy")}</td></tr>`).join("");
       const ses = day.sessions.map(s =>
-        `<tr><td style="border:1px solid #ccc;padding:6px;white-space:nowrap;">☐ ${D.clock(s.start)}</td><td style="border:1px solid #ccc;padding:6px;border-left:6px solid ${colorFor(s.classId)};"><b>${esc(s.title)}</b><br>${esc(s.topicText)}</td><td style="border:1px solid #ccc;padding:6px;">${esc(s.tip)}</td></tr>`).join("");
+        `<tr><td style="border:1px solid #ccc;padding:6px;white-space:nowrap;">☐ ${D.clock(s.start)}</td><td style="border:1px solid #ccc;padding:6px;border-left:6px solid ${colorFor(s.classId)};"><b>${esc(s.title)}</b><br>${esc(s.topicText)}</td><td style="border:1px solid #ccc;padding:6px;">${esc(s.tip)}${(s.resources || []).length ? `<br><b>Use:</b> ${esc(s.resources.slice(0, 3).join("; "))}` : ""}</td></tr>`).join("");
       if (!exams && !ses && !tuts) return "";
       return `<h3 style="font-family:Montserrat,Arial,sans-serif;color:#9d2235;margin:18px 0 6px;">${D.pretty(day.date)}</h3>
         <table style="border-collapse:collapse;width:100%;font-family:Montserrat,Arial,sans-serif;font-size:11pt;">${exams}${tuts}${busy}${ses}</table>`;
@@ -79,7 +79,7 @@
     const q = v => `"${String(v == null ? "" : v).replace(/"/g, '""')}"`;
     const head = ["Date", "Day", "Start", "End", "Class", "Session", "Study guide topic", "How to study", "Done"];
     const lines = [head.map(q).join(",")];
-    sessions().forEach(s => lines.push([s.date, D.days[D.dow(s.date)], D.clock(s.start), D.clock(s.end), S.className(s.classId), s.title, s.topicText, s.tip, s.done ? "Yes" : ""].map(q).join(",")));
+    sessions().forEach(s => lines.push([s.date, D.days[D.dow(s.date)], D.clock(s.start), D.clock(s.end), S.className(s.classId), s.title, s.topicText, s.tip + ((s.resources || []).length ? ` Use: ${s.resources.slice(0, 3).join("; ")}` : ""), s.done ? "Yes" : ""].map(q).join(",")));
     tutorials().forEach(t => lines.push([t.date, D.days[D.dow(t.date)], D.clock(t.start), D.clock(t.end), S.className(t.classId), "Tutorial", askTopics(t.classId).slice(0, 3).join("; "), "Bring 2 or 3 specific questions", t.done ? "Yes" : ""].map(q).join(",")));
     CFG.EXAMS.forEach(e => lines.push([e.date, D.days[D.dow(e.date)], "", "", S.className(e.id), "EXAM", "", `${S.examMinutes()} minutes`, ""].map(q).join(",")));
     return lines.join("\r\n");
@@ -123,7 +123,7 @@
     const out = [];
     sessions().filter(s => s.date >= today && !s.done).forEach(s => out.push({
       summary: `📚 ${s.title}`,
-      description: `Study guide topic: ${s.topicText}\n\n${s.tip}\n\nCheck it off in Exam Prep HQ when you're done.`,
+      description: `Study guide topic: ${s.topicText}\n\n${s.tip}${(s.resources || []).length ? `\n\nUse: ${s.resources.slice(0, 3).join("; ")}` : ""}\n\nOpen Exam Prep HQ and tap Start for a timer and check-in.`,
       start: at(s.date, s.start), end: at(s.date, s.end),
       colorId: GCAL_COLORS[s.classId] || "8",
       reminders: { useDefault: false, overrides: [{ method: "popup", minutes: 10 }] }

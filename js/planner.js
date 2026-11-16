@@ -57,7 +57,9 @@
         while (t + len <= b && count < cap) {
           slots.push({ date: d, start: t, end: t + len });
           count++;
-          t += len + 10; // 10-minute break between sessions
+          // 10-minute break after each session. With extra breaks on, the session's own
+          // mini-breaks (5 minutes between 15-minute sprints) are added on top, so study time stays the same.
+          t += len + 10 + (p.extraBreaks ? 5 * (Math.ceil(len / 15) - 1) : 0);
         }
       });
     }
@@ -86,9 +88,9 @@
         const details = (t.details || []).filter(Boolean);
         if (details.length > 4) {
           // Big sections become smaller study sessions, each with the same rating.
-          chunk(details).forEach((part, k) => out.push({ id: `${t.id}-p${k}`, text: `${t.text}: ${part.join(", ")}`, conf: t.conf, isPart: true }));
+          chunk(details).forEach((part, k) => out.push({ id: `${t.id}-p${k}`, baseId: t.id, text: `${t.text}: ${part.join(", ")}`, conf: t.conf, isPart: true, resources: t.resources || [] }));
         } else {
-          out.push({ id: t.id, text: details.length ? `${t.text}: ${details.join(", ")}` : t.text, conf: t.conf });
+          out.push({ id: t.id, baseId: t.id, text: details.length ? `${t.text}: ${details.join(", ")}` : t.text, conf: t.conf, resources: t.resources || [] });
         }
       });
       return out;
@@ -113,10 +115,25 @@
         const weight = (6 - conf) + (isNaN(grade) ? 0 : grade < 80 ? 2 : grade < 88 ? 1 : 0);
         for (let r = 0; r < reps; r++) {
           const kind = r === 0 ? "rebuild" : (r === reps - 1 && reps >= 3 ? "mix" : "quiz");
-          tasks.push({ classId: e.id, topicId: t.id, topicText: t.text, rep: r, reps, kind, weight, deadline, earliest: null, done: false });
+          tasks.push({ classId: e.id, topicId: t.id, baseId: t.baseId || t.id, topicText: t.text, resources: t.resources || [], rep: r, reps, kind, weight, deadline, earliest: null, done: false });
         }
       });
-      tasks.push({ classId: e.id, topicId: "final", topicText: "Whole study guide", rep: 99, kind: "test", weight: 99, deadline, earliest: D.addDays(e.date, -3), done: false });
+      const allRes = [];
+      topicsFor(state, e.id).forEach(t => (t.resources || []).forEach(r => { if (!allRes.includes(r)) allRes.push(r); }));
+      tasks.push({ classId: e.id, topicId: "final", baseId: "final", topicText: "Whole study guide", resources: allRes.slice(0, 3), rep: 99, kind: "test", weight: 99, deadline, earliest: D.addDays(e.date, -3), done: false });
+
+      // Every class gets at least MIN_SESSIONS study sessions (plus its practice exam),
+      // even if the student skipped its study guide or feels great about it.
+      const MIN_SESSIONS = 5;
+      const mine = tasks.filter(t => t.classId === e.id && t.kind !== "test");
+      const firsts = mine.filter(t => t.rep === 0);
+      let k = 0;
+      while (mine.length < MIN_SESSIONS && firsts.length && k < 20) {
+        const base = firsts[k % firsts.length];
+        const reps = tasks.filter(t => t.classId === e.id && t.topicId === base.topicId && t.kind !== "test").length;
+        const extra = Object.assign({}, base, { rep: reps, kind: "review", done: false, earliest: null });
+        tasks.push(extra); mine.push(extra); k++;
+      }
     });
     return tasks;
   }
@@ -255,7 +272,7 @@
       task.done = true; task.scheduled = slot.date;
       sessions.push({
         id: uid(), date: slot.date, start: D.toTime(slot.start), end: D.toTime(slot.end),
-        classId: task.classId, topicId: task.topicId, topicText: task.topicText,
+        classId: task.classId, topicId: task.topicId, baseId: task.baseId || task.topicId, topicText: task.topicText, resources: task.resources || [],
         kind: task.kind, title: titleFor(task, state), tip: tipFor(task, state), done: false
       });
     };

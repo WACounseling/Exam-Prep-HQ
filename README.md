@@ -2,26 +2,33 @@
 
 A study-planning website for Woodward Academy 7th and 8th graders. Students add their grades, study guides, confidence for each topic, and what's already on their calendar. Exam Prep HQ then builds spaced study sessions for every part of every study guide, finishing with a practice exam the day before each test.
 
-**Built to be simple for students working on their own**
+**Built to be simple for students working on their own.** Input stays minimal (the 5-question setup, plus optional study guides). Everything else is one tap.
 
 - **Guided setup (about 5 minutes):** five short screens, one question each.
   1. Name and grade
-  2. How each class is going (letter grade and a 😵 to 😎 face)
+  2. Letter grade and a 😵 to 😎 face for each class
   3. What's already on their calendar
-  4. When they like to study (tap a choice, no typing times)
+  4. When they like to study
   5. Extended time and MindPrint (both optional)
-
-  Then the site builds the plan and offers to put it on Google Calendar or print it.
-- **Five tabs:**
-  - **Today:** just today's sessions with big checkboxes, a progress bar, and badges. It also suggests at most two optional upgrades (add study guides, get Google Calendar reminders, plan a tutorial, add MindPrint) and shows a tip of the day.
-  - **My plan:** this week is open and other weeks are folded away. One "Save my plan" button offers Google Calendar, print, and more formats. "Update my plan" rebuilds it and keeps finished sessions.
-  - **My classes:** one row per class that opens to letter grade, feeling, study guide upload (PDF, Word, or pasted text), topic ratings, and questions for the teacher. It also has an optional, folded-away "What could my semester grade be?" section.
-  - **My week:** tutorials (pick a class and a day; the time is always 3:15 to 3:40 p.m.), busy times, and study times. Detailed settings are under "More options."
-  - **Tips:** short cards with one idea and one "Try it" each.
-    - Study smarter, Get organized, Test day, Stay balanced, Exam week checklist, Myth or fact
-    - Tutorials: before, during, and after, plus "Topics to ask about" from the student's lowest-rated topics, question starters, and a copyable email to a teacher
-    - Extended time: a personal pacing plan
-    - My MindPrint: upload the report or enter it by hand, then see a short playbook
+- **Today:** the home page shows the student's sessions for the day.
+  - A 3-tip first-visit tour.
+  - **Catch me up** when sessions were missed. It reschedules them and lists what to do first if time is short.
+  - **Night-before and exam-day screens** with a short checklist and the student's own pacing plan.
+  - A **Feeling overwhelmed?** button.
+  - At most two suggestions at a time, such as "Add your Spanish study guide."
+- **▶ Start on any session** opens a focus screen.
+  - It shows a timer, the one thing to do, the teacher's materials ("Use: Review sheets pgs. 2-5"), and 🔊 read-aloud.
+  - Then comes a one-tap check-in: "How does this topic feel now?" The answer updates the topic's rating, and the plan adjusts automatically.
+  - Then a 10-minute break timer.
+  - **"Stuck? Ask my teacher"** adds the topic to that class's questions for tutorials and links to planning one.
+- **Feeling overwhelmed?** opens four calm options: one minute of guided breathing, talk to someone (parent, advisor, teacher, or counselor), extra breaks, and "just start."
+  - **Extra breaks never reduce study time.** Each session is split into 15-minute sprints with 5-minute breaks in between, and the schedule adds room for them.
+- **Every class gets at least 5 study sessions** plus a practice exam, even without a study guide.
+- **Five tabs:** Today, My plan, My classes, My week, and Tips. On phones, the tabs sit at the bottom of the screen.
+- **Save my plan:** add to Google Calendar (with reminders), print, share with a parent or advisor (as a read-only Google Doc), or download a Google Doc, Google Sheet, Word, calendar, or spreadsheet file.
+- **Text and display (Aa button):** larger text, an easier-to-read font (Atkinson Hyperlegible), and high contrast. Saved on each device.
+- **Accessibility:** every page and pop-up passes automated WCAG 2.1 AA checks (axe-core). Labels are shown under the face ratings, everything works with a keyboard, and reduced-motion settings are respected.
+- **Demo mode for advisory:** add `?demo` to the site address (for example `https://YOUR-USERNAME.github.io/Exam-Prep-HQ/?demo`) to show a made-up student, Maya, on a projector. Demo data is kept separately, rebuilt with dates starting from today, and never saved to anyone's account. There's also a link in **Start over**.
 
 There is no server and no database. Data is saved in the student's browser and, when they sign in, in a folder in their own Google Drive.
 
@@ -137,7 +144,7 @@ In the `exam-prep-hq` folder, run `python3 -m http.server 8000` and open `http:/
 
 The reader runs entirely in the student's browser and looks at layout, not just words:
 
-1. **Summary table.** If the guide has a table with a header like "Sections on the Exam," "Topics," or "Units," the first column becomes the topics and the second column becomes the details. A "How to study" column is ignored.
+1. **Summary table.** If the guide has a table with a header like "Sections on the Exam," "Topics," or "Units," the first column becomes the topics and the second column becomes the details. A third "How to study" column becomes each topic's **Use:** list, which shows up in every study session for that topic.
 2. **Headings.** Text much bigger than the rest (like GRAMMAR) starts a section. Short lines at the left margin become subtopics, for example "Participles—Underline...", "Commas: Directions...", "Semicolons", or "Active/Passive Voice Indicate...".
 3. **Skipped:** numbered practice items, fill-in blanks ("Fragment: ____"), answer keys ("A= ..."), directions, and worksheet labels ("Title:").
 4. **Fallback:** if neither is found, it falls back to a simpler line-by-line guess.
