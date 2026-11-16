@@ -630,3 +630,11 @@ details.more > summary { cursor: pointer; font-weight: 700; color: var(--focus);
 .proj span { white-space: nowrap; }
 .class-body > div { min-width: 0; }
 .guide-files li { overflow-wrap: anywhere; word-break: break-word; }
+
+/* Start over */
+.start-over { background: transparent; color: var(--white); border-color: rgba(255,255,255,.7); }
+.start-over:hover { background: rgba(255,255,255,.15); border-color: var(--white); }
+.save-options.one-col { grid-template-columns: 1fr; }
+.dl.danger:not(:disabled):hover { border-color: var(--red); background: #fbf1f3; }
+.danger-btn { background: #7d0a1c; border-color: #7d0a1c; }
+@media (max-width: 600px) { .start-over { padding: 5px 10px; font-size: .8rem; min-height: 32px; } .account .sync { display: none; } }

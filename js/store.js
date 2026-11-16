@@ -124,7 +124,8 @@
       try { localStorage.setItem(LS_KEY, JSON.stringify(Store.state)); } catch (e) { /* ignore */ }
     },
     reset() {
-      const drive = Store.state.drive;
+      // Keep the Drive folder links (so the same folder is reused) but forget everything else.
+      const drive = Object.assign({}, Store.state.drive, { calendarSyncedAt: 0 });
       Store.state = freshState();
       Store.state.drive = drive;
       Store.save({ now: true });

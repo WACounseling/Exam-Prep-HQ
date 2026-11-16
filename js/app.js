@@ -106,16 +106,19 @@
       : `<span class="brand-text"><span class="brand-school">${esc(CFG.SCHOOL_NAME.toUpperCase())}</span><span class="brand-app">Exam Prep HQ</span></span>`;
   }
 
+  const startOverBtn = `<button class="btn small start-over" data-act="start-over" aria-label="Start over"><span aria-hidden="true">↺</span><span class="so-text">Start over</span></button>`;
+
   function renderAccount() {
     const a = $("#account");
-    if (!window.Drive.enabled()) { a.innerHTML = `<span class="sync"><span class="sync-text">Saved on this device</span></span>`; return; }
-    if (!window.Drive.user) { a.innerHTML = `<button class="btn light small" data-act="signin">Sign in with Google</button>`; return; }
+    if (!window.Drive.enabled()) { a.innerHTML = `<span class="sync"><span class="sync-text">Saved on this device</span></span>${startOverBtn}`; return; }
+    if (!window.Drive.user) { a.innerHTML = `${startOverBtn}<button class="btn light small" data-act="signin">Sign in with Google</button>`; return; }
     const labels = { saving: ["", "Saving..."], saved: ["ok", "Saved to Drive"], reconnect: ["warn", "Not saving"], error: ["warn", "Save failed"], local: ["", "Saved on this device"] };
     const [cls, txt] = labels[ui.sync] || labels.saved;
     const u = window.Drive.user;
     a.innerHTML = `
       <span class="sync ${cls}"><span class="sync-text">${txt}</span></span>
       ${ui.sync === "reconnect" || ui.sync === "error" ? `<button class="btn light small" data-act="reconnect">Reconnect</button>` : ""}
+      ${startOverBtn}
       <button class="avatar" data-act="account-menu" aria-label="Account: ${esc(u.email || "")}">${esc((u.given_name || u.name || "?").charAt(0).toUpperCase())}</button>`;
   }
 
@@ -501,7 +504,7 @@
       ${plan.warnings.map(w => `<div class="warn">${esc(w)}</div>`).join("")}
       ${past.length ? `<p class="no-print"><button class="linkish small" data-act="toggle-past">${ui.showPast ? "Hide" : "Show"} past weeks</button></p>${ui.showPast ? past.map(w => weekHTML(w, false)).join("") : ""}` : ""}
       ${current.map((w, i) => weekHTML(w, i === 0)).join("")}
-      <p class="small muted no-print" style="margin-top:30px">Want to start completely over? <button class="linkish" data-act="reset">Erase everything</button></p>`;
+      <p class="small muted no-print" style="margin-top:30px">Want to start over? <button class="linkish" data-act="start-over">Start over</button></p>`;
   }
 
   function calendarStale() {
@@ -533,6 +536,40 @@
         </details>
       </div>
       <div class="modal-foot"><button class="btn ghost" data-act="modal-close">Close</button></div>`);
+  }
+
+  function startOverMenu() {
+    const hasAnything = !!st().plan || Object.values(st().classes).some(c => c.grade || c.topics.length) || st().busy.length;
+    openModal(`
+      <div class="modal-body">
+        <h3>Start over</h3>
+        <div class="save-options one-col">
+          <button class="dl" data-act="redo-setup"><span class="e" aria-hidden="true">✏️</span><b>Redo setup</b><span>Go through the 5 setup questions again. Your answers so far stay filled in, and you can change them.</span></button>
+          <button class="dl danger" data-act="erase-ask" ${hasAnything ? "" : "disabled"}><span class="e" aria-hidden="true">🗑️</span><b>Erase everything</b><span>Clear all classes, study guides, busy times, tutorials, MindPrint, and your plan. Start completely fresh.</span></button>
+        </div>
+      </div>
+      <div class="modal-foot"><button class="btn ghost" data-act="modal-close">Cancel</button></div>`);
+  }
+
+  function eraseConfirm() {
+    const signedIn = !!window.Drive.user;
+    const onCal = !!st().drive.calendarSyncedAt;
+    openModal(`
+      <div class="modal-body">
+        <h3>Erase everything?</h3>
+        <p>This clears all your classes, study guides, busy times, tutorials, MindPrint, and your plan${signedIn ? ", on this device and in your Google Drive" : " on this device"}. <b>This can't be undone.</b></p>
+        ${onCal ? `<p class="small muted">Your Google Calendar events stay until you make a new plan and tap "Add to Google Calendar" again, which replaces them.</p>` : ""}
+      </div>
+      <div class="modal-foot"><button class="btn ghost" data-act="modal-close">Keep my stuff</button><button class="btn danger-btn" data-act="erase-all">Yes, erase everything</button></div>`);
+  }
+
+  function eraseAll() {
+    S.reset();
+    Object.assign(ui, { openClass: null, openProj: null, showPast: false, flipped: {}, examChecks: {}, mpEdit: false, mpAll: false, busyOpen: false, busyLabel: "", busyType: "weekly" });
+    closeModal();
+    location.hash = "#today";
+    render();
+    toast("Everything's cleared. Tap “Make my plan” to start fresh.");
   }
 
   function buildPlan() {
@@ -1131,8 +1168,10 @@
       }
       case "toggle-past": ui.showPast = !ui.showPast; render(); break;
       case "reset":
-        if (confirm("Erase your classes, schedule, and plan? This can't be undone.")) { S.reset(); location.hash = "#today"; render(); toast("Everything's cleared."); }
-        break;
+      case "start-over": startOverMenu(); break;
+      case "redo-setup": closeModal(); location.hash = "#start/1"; break;
+      case "erase-ask": eraseConfirm(); break;
+      case "erase-all": eraseAll(); break;
 
       case "save-menu": saveMenu(); break;
       case "exp-print": try { window.Exports.print(); } catch (err) { toast(err.message); } break;
