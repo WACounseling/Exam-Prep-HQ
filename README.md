@@ -2,22 +2,26 @@
 
 A study-planning website for Woodward Academy 7th and 8th graders. Students add their grades, study guides, confidence for each topic, and what's already on their calendar. Exam Prep HQ then builds spaced study sessions for every part of every study guide, finishing with a practice exam the day before each test.
 
-**What's inside**
+**Built to be simple for students working on their own**
 
-- **My classes:** grade (number or letter), overall confidence, study guide upload (PDF, Word, or photo), and a topic list rated 😵 to 😎. Topics are pulled from PDFs and Word files automatically; students check and edit them.
-- **My calendar:** weekly and one-time commitments, study windows, session length, a weekly free day, and days off.
-- **Home:** exam countdown, "Up next" sessions, progress and badges, and a **How to use Exam Prep HQ** routine (set up once, check in daily, prep before tutorials, rebuild on Sundays, rest before exams).
-- **My plan:** sessions linked to each study guide topic, checkboxes, progress, badges, and downloads: **Add to Google Calendar** (with reminders), print/PDF, Google Doc, Google Sheet, Word, calendar file (.ics), and CSV.
-- **Tutorials:** how to prepare for, use, and follow up on tutorials with teachers; a planner for tutorial times (they appear on the plan and calendar, and study sessions are never scheduled on top of them); question starters; and a per-class "hit list" of each student's shakiest topics with space to write questions.
-- **MindPrint:** matches the MindPrint Student Profile: three categories (Complex Reasoning, Memory, Executive Functions), skills listed strongest first, and one highlighted strongest category. Students either **upload their MindPrint Student Profile PDF** or **arrange their skills by hand** in boxes laid out like the report. Exam Prep HQ then shows:
-  - their "superpower" (the strongest skill in their strongest category),
-  - how to lean on the first skill in each category and work around the last one (a possible "blocker"),
-  - their top strategies, and
-  - how to use each of their report's recommended strategies for exam prep.
+- **Guided setup (about 5 minutes):** five short screens, one question each.
+  1. Name and grade
+  2. How each class is going (grade and a 😵 to 😎 face)
+  3. What's already on their calendar
+  4. When they like to study (tap a choice, no typing times)
+  5. Extended time and MindPrint (both optional)
 
-  Their profile also changes the instructions inside their study sessions (for example, "Talk through each step out loud" or "Make a test plan").
-- **Strategy lab:** studying, organizing, test-taking, balance and perspective, asking for help, an exam-week checklist, and myth-or-fact cards.
-- **Extended time:** why it matters, a pacing plan for the student's own exam length, and how to slow down.
+  Then the site builds the plan and offers to put it on Google Calendar or print it.
+- **Five tabs:**
+  - **Today:** just today's sessions with big checkboxes, a progress bar, and badges. It also suggests at most two optional upgrades (add study guides, get Google Calendar reminders, plan a tutorial, add MindPrint) and shows a tip of the day.
+  - **My plan:** this week is open and other weeks are folded away. One "Save my plan" button offers Google Calendar, print, and more formats. "Update my plan" rebuilds it and keeps finished sessions.
+  - **My classes:** one row per class that opens to grade, feeling, study guide upload (PDF, Word, or pasted text), topic ratings, and questions for the teacher.
+  - **My week:** tutorials (pick a class and a day; the time is always 3:15 to 3:40 p.m.), busy times, and study times. Detailed settings are under "More options."
+  - **Tips:** short cards with one idea and one "Try it" each.
+    - Study smarter, Get organized, Test day, Stay balanced, Exam week checklist, Myth or fact
+    - Tutorials: before, during, and after, plus "Topics to ask about" from the student's lowest-rated topics, question starters, and a copyable email to a teacher
+    - Extended time: a personal pacing plan
+    - My MindPrint: upload the report or enter it by hand, then see a short playbook
 
 There is no server and no database. Data is saved in the student's browser and, when they sign in, in a folder in their own Google Drive.
 
@@ -90,10 +94,11 @@ Everything you'll normally change is in `js/config.js`:
 
 - `EXAMS`: names, dates (`YYYY-MM-DD`), colors, and icons.
 - `EXAM_MINUTES`: standard exam length (currently 70).
+- `TUTORIAL_START` / `TUTORIAL_END`: tutorial time (currently 3:15 to 3:40 p.m.).
 - `DRIVE_FOLDER_NAME`: use a new name each semester so students get a fresh folder.
 - `SEMESTER_LABEL`
 
-All reading content (how-to routine, tutorial guide, strategies, myths, MindPrint skill tips and strategy advice, extended time text, default topics) is in `js/content.js` and can be edited without touching the app code.
+All reading content (home page steps, tips, tutorial guide, myths, MindPrint skill tips and strategy advice, extended time text, default topics). Keep additions short: students read two sentences far more often than ten is in `js/content.js` and can be edited without touching the app code.
 
 ## 4. Optional: add the official logo
 

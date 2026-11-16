@@ -1,7 +1,9 @@
 /* ==========================================================================
-   PREP HQ: THE APP
-   Pages: Home, My classes, My calendar, My plan, MindPrint, Strategy lab,
-   Extended time. Everything renders from Store.state.
+   EXAM PREP HQ: THE APP
+   Built to feel simple for a middle schooler working on their own:
+   a 5-step guided setup, a "Today" home page, and five tabs.
+   Optional extras (study guides, MindPrint, tutorials, Google Calendar)
+   are suggested one at a time after the plan exists.
    ========================================================================== */
 (function () {
   const CFG = window.PREP_CONFIG;
@@ -14,35 +16,45 @@
   const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
   const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
-  const ROUTES = [
-    { id: "home", label: "Home", icon: "🏠" },
+  const TABS = [
+    { id: "today", label: "Today", icon: "🏠" },
+    { id: "plan", label: "My plan", icon: "🗓️" },
     { id: "classes", label: "My classes", icon: "📚" },
-    { id: "calendar", label: "My calendar", icon: "🗓️" },
-    { id: "plan", label: "My plan", icon: "✅" },
-    { id: "tutorials", label: "Tutorials", icon: "🙋" },
-    { id: "mindprint", label: "MindPrint", icon: "🧩" },
-    { id: "lab", label: "Strategy lab", icon: "🧠" },
-    { id: "time", label: "Extended time", icon: "⏱️" }
+    { id: "week", label: "My week", icon: "⏰" },
+    { id: "tips", label: "Tips", icon: "💡" }
   ];
 
-  const ui = { labTab: "study", planFilter: "all", sync: "local", flipped: {}, busyType: "weekly", busyLabel: "", examChecks: {} };
+  const WIZ_STEPS = 5;
+
+  // Study-time choices (students pick one instead of typing times).
+  const WEEKDAY_TIMES = [
+    { start: "16:00", end: "18:00", label: "After tutorials", sub: "4 to 6 p.m." },
+    { start: "18:30", end: "20:30", label: "After dinner", sub: "6:30 to 8:30 p.m." },
+    { start: "16:00", end: "20:30", label: "Either one", sub: "4 to 8:30 p.m." }
+  ];
+  const WEEKEND_TIMES = [
+    { start: "10:00", end: "12:30", label: "Mornings", sub: "10 a.m. to 12:30 p.m." },
+    { start: "13:00", end: "17:00", label: "Afternoons", sub: "1 to 5 p.m." },
+    { start: "10:00", end: "17:00", label: "Either one", sub: "10 a.m. to 5 p.m." }
+  ];
+
+  const ui = { busyType: "weekly", busyLabel: "", busyOpen: false, openClass: null, showPast: false, flipped: {}, examChecks: {}, mpEdit: false, mpAll: false, sync: "local" };
 
   const BADGES = [
-    { id: "classes", e: "🚀", name: "Ready to roll", test: s => gradesEntered(s) >= 3 },
-    { id: "guide", e: "📄", name: "Guide added", test: s => Object.values(s.classes).some(c => c.topics.length) },
-    { id: "plan", e: "🗺️", name: "Plan built", test: s => !!s.plan },
+    { id: "plan", e: "🗺️", name: "Plan made", test: s => !!s.plan },
     { id: "first", e: "⭐", name: "First session", test: s => doneCount(s) >= 1 },
-    { id: "five", e: "🔥", name: "Five down", test: s => doneCount(s) >= 5 },
+    { id: "five", e: "🔥", name: "Five done", test: s => doneCount(s) >= 5 },
+    { id: "guide", e: "📄", name: "Study guide added", test: s => Object.values(s.classes).some(c => c.topics.length) },
+    { id: "tutorial", e: "🙋", name: "Went to tutorials", test: s => (s.tutorials || []).some(t => t.done) },
     { id: "half", e: "🏔️", name: "Halfway there", test: s => pct(s) >= 50 },
-    { id: "mind", e: "🧩", name: "Know your brain", test: s => !!(s.mindprint.order && Object.keys(s.mindprint.order).length >= 2) },
     { id: "ready", e: "🏆", name: "Exam ready", test: s => !!s.plan && s.plan.sessions.filter(x => x.kind === "test").length >= 5 && s.plan.sessions.filter(x => x.kind === "test").every(x => x.done) }
   ];
 
-  function gradesEntered(s) { return Object.values(s.classes).filter(c => String(c.grade).trim() !== "").length; }
   function doneCount(s) { return s.plan ? s.plan.sessions.filter(x => x.done).length : 0; }
   function pct(s) { return s.plan && s.plan.sessions.length ? Math.round(100 * doneCount(s) / s.plan.sessions.length) : 0; }
+  function askTopics(classId) { return window.Exports.askTopics(classId); }
 
-  /* ---------- Saving + badges ---------- */
+  /* ---------- Saving, badges, feedback ---------- */
   function save(opts = {}) {
     if (opts.planInputs) st().planStale = !!st().plan;
     S.save();
@@ -59,7 +71,6 @@
     confetti();
   }
 
-  /* ---------- Toast, confetti, modal ---------- */
   let toastTimer;
   function toast(msg) {
     const t = $("#toast");
@@ -79,55 +90,42 @@
       p.style.left = Math.random() * 100 + "vw";
       p.style.background = colors[i % colors.length];
       p.style.animationDelay = Math.random() * 0.4 + "s";
-      p.style.transform = `rotate(${Math.random() * 360}deg)`;
       wrap.appendChild(p);
     }
     document.body.appendChild(wrap);
     setTimeout(() => wrap.remove(), 2300);
   }
 
-  function openModal(html) {
-    const m = $("#modal");
-    m.innerHTML = html;
-    if (!m.open) m.showModal();
-  }
+  function openModal(html) { const m = $("#modal"); m.innerHTML = html; if (!m.open) m.showModal(); }
   function closeModal() { const m = $("#modal"); if (m.open) m.close(); }
 
   /* ---------- Header ---------- */
   function renderBrand() {
-    const b = $("#brand");
-    b.innerHTML = CFG.LOGO_URL
+    $("#brand").innerHTML = CFG.LOGO_URL
       ? `<img src="${esc(CFG.LOGO_URL)}" alt="${esc(CFG.SCHOOL_NAME)}"><span class="brand-text"><span class="brand-app">Exam Prep HQ</span></span>`
       : `<span class="brand-text"><span class="brand-school">${esc(CFG.SCHOOL_NAME.toUpperCase())}</span><span class="brand-app">Exam Prep HQ</span></span>`;
   }
 
   function renderAccount() {
     const a = $("#account");
-    if (!window.Drive.enabled()) {
-      a.innerHTML = `<span class="sync"><span class="sync-text">Saved on this device</span></span>`;
-      return;
-    }
-    if (!window.Drive.user) {
-      a.innerHTML = `<button class="btn light small" data-act="signin">Sign in with Google</button>`;
-      return;
-    }
-    const labels = { saving: ["", "Saving to Drive"], saved: ["ok", "Saved to Drive"], reconnect: ["warn", "Not saving"], error: ["warn", "Save failed"], local: ["", "Saved on this device"] };
+    if (!window.Drive.enabled()) { a.innerHTML = `<span class="sync"><span class="sync-text">Saved on this device</span></span>`; return; }
+    if (!window.Drive.user) { a.innerHTML = `<button class="btn light small" data-act="signin">Sign in with Google</button>`; return; }
+    const labels = { saving: ["", "Saving..."], saved: ["ok", "Saved to Drive"], reconnect: ["warn", "Not saving"], error: ["warn", "Save failed"], local: ["", "Saved on this device"] };
     const [cls, txt] = labels[ui.sync] || labels.saved;
     const u = window.Drive.user;
     a.innerHTML = `
       <span class="sync ${cls}"><span class="sync-text">${txt}</span></span>
       ${ui.sync === "reconnect" || ui.sync === "error" ? `<button class="btn light small" data-act="reconnect">Reconnect</button>` : ""}
-      <a class="btn light small" href="${window.Drive.folderLink()}" target="_blank" rel="noopener">📁 My Drive folder</a>
-      <button class="avatar" data-act="account-menu" aria-label="Account: ${esc(u.email || "")}" title="${esc(u.email || "")}">${esc((u.given_name || u.name || "?").charAt(0).toUpperCase())}</button>`;
+      <button class="avatar" data-act="account-menu" aria-label="Account: ${esc(u.email || "")}">${esc((u.given_name || u.name || "?").charAt(0).toUpperCase())}</button>`;
   }
 
   function renderTabs(current) {
-    $("#tabs").innerHTML = ROUTES.map(r =>
+    $("#tabs").innerHTML = TABS.map(r =>
       `<a class="tab" href="#${r.id}" ${r.id === current ? 'aria-current="page"' : ""}><span aria-hidden="true">${r.icon}</span>${r.label}</a>`).join("");
   }
 
-  /* ---------- Shared bits ---------- */
-  function classColorVars(id) {
+  /* ---------- Shared pieces ---------- */
+  function colorVars(id) {
     const e = S.exam(id);
     return e ? `--c:${e.color};--tint:${e.tint};` : "--c:#9d2235;--tint:#f6e3e1;";
   }
@@ -137,159 +135,385 @@
       `<button type="button" data-act="${act}" data-v="${c.v}" ${extra} aria-pressed="${Number(current) === c.v}" title="${c.label}" aria-label="${c.label}">${c.emoji}</button>`).join("");
   }
 
-  function daysLabel(n) {
-    if (n < 0) return { num: "✓", unit: "done" };
-    if (n === 0) return { num: "0", unit: "today" };
-    return { num: String(n), unit: n === 1 ? "day to go" : "days to go" };
+  function gates(small) {
+    const today = D.today();
+    return `<div class="gates ${small ? "small" : ""}" aria-label="Exam countdown">${CFG.EXAMS.map(e => {
+      const n = D.diff(today, e.date);
+      const num = n < 0 ? "✓" : String(n);
+      const unit = n < 0 ? "done" : n === 0 ? "today" : n === 1 ? "day" : "days";
+      return `<div class="gate ${n < 0 ? "past" : ""}" style="${colorVars(e.id)}">
+        <div class="icon" aria-hidden="true">${e.icon}</div>
+        <div class="num">${num}</div><div class="unit">${unit}</div>
+        <div class="subj">${esc(S.className(e.id))}</div>
+        <div class="when">${D.pretty(e.date, false)}</div>
+      </div>`;
+    }).join("")}</div>`;
   }
 
-  // Shakiest topics for a class: rated 1-2, or 3 if nothing is lower.
-  function hitList(classId) { return window.Exports.hitList(classId); }
-
-  function nextTutorial() {
-    const now = D.today();
-    return (st().tutorials || []).filter(t => !t.done && t.date >= now).sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start))[0];
+  function sessionCard(x) {
+    const late = !x.done && x.date < D.today();
+    return `<div class="session ${x.done ? "done" : ""}" style="${colorVars(x.classId)}">
+      <button class="check" data-act="toggle-session" data-id="${x.id}" aria-pressed="${!!x.done}" aria-label="Mark ${esc(x.title)} done">${x.done ? "✓" : ""}</button>
+      <div>
+        <div class="time">${D.clock(x.start)} to ${D.clock(x.end)}</div>
+        <div class="s-title">${esc(x.title)}</div>
+        <div class="s-topic">${esc(x.topicText)}</div>
+        <p class="s-tip">${esc(x.tip)}</p>
+        ${late ? `<p class="xs" style="margin:4px 0 0;color:var(--red)">Missed it? No problem. Tap "Update my plan" and it moves to a new time.</p>` : ""}
+      </div>
+    </div>`;
   }
 
-  function howToSection(open) {
-    const H = C.howTo;
-    return `
-      <details class="howto" ${open ? "open" : ""}>
-        <summary><h2>How to use Exam Prep HQ</h2>${open ? "" : `<span class="small muted howto-hint">Tap to see the routine</span>`}</summary>
-        <p class="howto-intro">${esc(H.intro)}</p>
-        <ol class="routine">${H.routine.map(r => `
-          <li>
-            <span class="r-when">${esc(r.when)}</span>
-            <span class="r-emoji" aria-hidden="true">${r.emoji}</span>
-            <b>${esc(r.title)}</b>
-            <span class="small">${esc(r.body)}</span>
-          </li>`).join("")}</ol>
-        <div class="tips">${H.tips.map(t => `<div class="tip"><b>${esc(t.title)}</b><span class="small">${esc(t.body)}</span></div>`).join("")}</div>
-      </details>`;
-  }
-
-  function tutorialTeaser() {
-    const s = st();
-    const items = [];
-    CFG.EXAMS.forEach(e => hitList(e.id).slice(0, 2).forEach(t => items.push({ id: e.id, t })));
-    const next = nextTutorial();
-    return `
-      <section class="panel teaser" aria-labelledby="tut-teaser-h">
-        <div class="teaser-text">
-          <h3 id="tut-teaser-h">Make your tutorials count</h3>
-          <p class="small" style="margin-bottom:10px">${esc(C.tutorials.intro.split(". ").slice(0, 2).join(". "))}.</p>
-          ${next ? `<p class="small" style="margin:0 0 10px"><b>Next tutorial:</b> ${esc(S.className(next.classId))}, ${D.pretty(next.date)} at ${D.clock(next.start)}</p>` : ""}
-          <a class="btn small" href="#tutorials">${s.tutorials.length ? "See my tutorial plan" : "Plan my tutorials"}</a>
-        </div>
-        <div>
-          <h4 class="small" style="margin-bottom:6px">Your hit list (topics to bring)</h4>
-          ${items.length ? `<ul class="hit-mini">${items.slice(0, 5).map(i => `<li style="${classColorVars(i.id)}"><span>${esc(S.className(i.id))}</span>${esc(i.t)}</li>`).join("")}</ul>`
-            : `<p class="small muted">Rate your study guide topics on <a href="#classes">My classes</a> and your shakiest ones show up here.</p>`}
-        </div>
-      </section>`;
+  function tutorialPill(t) {
+    const topics = askTopics(t.classId).slice(0, 3);
+    return `<div class="tut-pill"><span aria-hidden="true">🙋</span><span><b>${esc(S.className(t.classId))} tutorial, ${D.clock(t.start)}</b>${topics.length ? `<br><span class="small">Ask about: ${esc(topics.join("; "))}</span>` : ""}</span></div>`;
   }
 
   /* ======================================================================
-     HOME
+     TODAY
      ====================================================================== */
-  function pageHome() {
+  function pageToday() {
     const s = st();
     const today = D.today();
+    const firstExam = CFG.EXAMS.map(e => e.date).sort()[0];
+    const toFirst = D.diff(today, firstExam);
+
+    if (!s.plan) {
+      return `
+        <section class="hero brick">
+          <h1>${toFirst > 0 ? `Exams start in ${toFirst} day${toFirst === 1 ? "" : "s"}.` : "Exams are here."}</h1>
+          <p>Let's make a plan so you're ready, without the stress.</p>
+          <div class="btn-row"><a class="btn light big" href="#start/1">Make my plan</a><span class="hero-note">Takes about 5 minutes</span></div>
+          ${gates(false)}
+        </section>
+        <section class="how" aria-labelledby="how-h">
+          <h2 id="how-h">How it works</h2>
+          <ol class="how-steps">${C.howItWorks.map(h => `<li><span class="how-emoji" aria-hidden="true">${h.emoji}</span><b>${esc(h.title)}</b><span>${esc(h.body)}</span></li>`).join("")}</ol>
+          <p class="small muted" style="margin-top:14px">Just want study tips? <a href="#tips">Browse tips</a>.</p>
+        </section>`;
+    }
+
+    const todays = s.plan.sessions.filter(x => x.date === today);
+    const tutsToday = (s.tutorials || []).filter(t => t.date === today && !t.done);
+    const examToday = CFG.EXAMS.find(e => e.date === today);
+    const next = s.plan.sessions.filter(x => !x.done && x.date > today).slice(0, 1);
+    const allDone = todays.length && todays.every(x => x.done);
     const name = s.profile.name ? `, ${esc(s.profile.name)}` : "";
-    const first = CFG.EXAMS.map(e => e.date).sort()[0];
-    const toFirst = D.diff(today, first);
 
-    const gates = CFG.EXAMS.map(e => {
-      const n = D.diff(today, e.date);
-      const l = daysLabel(n);
-      return `<div class="gate ${n < 0 ? "past" : ""}" style="${classColorVars(e.id)}">
-        <div class="icon" aria-hidden="true">${e.icon}</div>
-        <div class="num">${l.num}</div><div class="unit">${l.unit}</div>
-        <div class="subj">${esc(S.className(e.id))}</div>
-        <div class="when">${D.pretty(e.date)}</div>
-      </div>`;
-    }).join("");
-
-    const headline = toFirst > 0
-      ? `${toFirst} day${toFirst === 1 ? "" : "s"} until your first exam${name}.`
-      : `Exam week is here${name}.`;
-    const cta = s.plan
-      ? `<a class="btn light big" href="#plan">See my plan</a><a class="btn ghost big" style="color:#fff;border-color:#fff" href="#lab">Study tips</a>`
-      : `<a class="btn light big" href="#classes">Build my plan</a><a class="btn ghost big" style="color:#fff;border-color:#fff" href="#lab">Study tips</a>`;
-
-    const steps = [
-      { done: gradesEntered(s) >= 3, title: "Add your classes and grades", sub: "Your grade and how you feel about each class.", href: "#classes" },
-      { done: Object.values(s.classes).some(c => c.topics.length), title: "Add your study guides", sub: "Upload them or type the topics, then rate each one.", href: "#classes" },
-      { done: s.busy.length > 0 || s.calendarChecked, title: "Add what's already on your calendar", sub: "Practices, rehearsals, family plans, and when you like to study.", href: "#calendar" },
-      { done: !!s.plan, title: "Build your plan", sub: "Exam Prep HQ spaces out study sessions for each part of each study guide.", href: "#plan" }
-    ];
-
-    const upNext = s.plan
-      ? s.plan.sessions.filter(x => !x.done && x.date >= today).slice(0, 3)
-      : [];
-    const nextHTML = s.plan
-      ? (upNext.length ? `<div class="sessions">${upNext.map(sessionCard).join("")}</div>
-          <p class="small" style="margin-top:12px"><a href="#plan">See the whole plan</a></p>`
-        : `<p>Nothing left on your plan. Nice work. Rest up and take care of yourself.</p>`)
-      : `<ol class="steps">${steps.map(x => `<li class="${x.done ? "done" : ""}"><div><b>${x.title}</b><span class="small muted">${x.sub}</span></div><a class="btn small ${x.done ? "ghost" : ""}" href="${x.href}">${x.done ? "Edit" : "Start"}</a></li>`).join("")}</ol>`;
-
-    const signin = window.Drive.enabled() && !window.Drive.user ? `
-      <div class="panel signin-card">
-        <div class="g" aria-hidden="true">☁️</div>
-        <div>
-          <h4 style="margin:0 0 4px">Save everything to your Google Drive</h4>
-          <p class="small muted" style="margin:0 0 10px">Sign in with your school Google account. Exam Prep HQ makes an "${esc(CFG.DRIVE_FOLDER_NAME)}" folder for your plan, study guides, and schedules, so you can use it on any computer.</p>
-          <button class="btn small" data-act="signin">Sign in with Google</button>
-        </div>
-      </div>` : "";
+    let todayBody;
+    if (todays.length) {
+      todayBody = `${allDone ? `<p class="win">🎉 You're done for today${name}. Go enjoy your evening.</p>` : ""}<div class="sessions">${todays.map(sessionCard).join("")}</div>`;
+    } else {
+      todayBody = `<p class="win">😌 No studying today. Enjoy it.</p>`;
+    }
+    if (next.length && (allDone || !todays.length)) {
+      todayBody += `<h4 style="margin-top:16px">Next up: ${D.pretty(next[0].date)}</h4><div class="sessions">${sessionCard(next[0])}</div>`;
+    }
 
     return `
-      <section class="hero brick" aria-labelledby="hero-title">
-        <h1 id="hero-title">${headline}</h1>
-        <p>Five exams, ${CFG.EXAM_MINUTES} minutes each. Exam Prep HQ helps you turn your study guides into a plan that fits around practices, family time, and sleep.</p>
-        <div class="btn-row">${cta}</div>
-        <div class="gates" aria-label="Exam countdown">${gates}</div>
+      <section class="hero brick compact">
+        <h1>Hi${name}.</h1>
+        <p>${toFirst > 0 ? `${toFirst} day${toFirst === 1 ? "" : "s"} until your first exam. You've got a plan.` : "It's exam time. You've prepared for this."}</p>
+        ${gates(true)}
       </section>
 
-      ${howToSection(!s.plan)}
+      ${s.planStale ? `<div class="warn" style="margin-top:18px">You changed some things. <button class="btn small" data-act="build">Update my plan</button></div>` : ""}
 
-      <div class="grid two" style="margin-top:24px">
-        <section class="panel" aria-labelledby="next-title">
-          <div class="panel-title"><h3 id="next-title">${s.plan ? "Up next" : "Get set up"}</h3></div>
-          ${nextHTML}
+      <div class="grid today-grid" style="margin-top:20px">
+        <section class="panel today-card" aria-labelledby="today-h">
+          <h2 id="today-h">Today <span class="muted" style="font-weight:600;font-size:1rem">${D.pretty(today)}</span></h2>
+          ${examToday ? `<div class="exam-pill" style="${colorVars(examToday.id)}">⭐ ${esc(S.className(examToday.id))} exam today. Eat breakfast and use all your time.</div>` : ""}
+          ${tutsToday.map(tutorialPill).join("")}
+          ${todayBody}
         </section>
+
         <div class="stack">
-          ${signin}
-          <section class="panel" aria-labelledby="prog-title">
-            <div class="panel-title"><h3 id="prog-title">Your progress</h3></div>
-            <div class="progress-wrap">
-              <div class="ring" style="--p:${pct(s)}" role="img" aria-label="${pct(s)} percent of study sessions done"><span>${pct(s)}%</span></div>
-              <div>
-                <p style="margin:0 0 4px"><b>${doneCount(s)}</b> of ${s.plan ? s.plan.sessions.length : 0} study sessions done</p>
-                <p class="small muted" style="margin:0">Check off sessions on your plan to fill the ring.</p>
-              </div>
-            </div>
-            <h4 style="margin-top:18px">Badges</h4>
-            <div class="badges">${BADGES.map(b => {
-              const e = s.earnedBadges.includes(b.id);
-              return `<span class="badge ${e ? "earned" : "locked"}"><span class="e" aria-hidden="true">${b.e}</span>${b.name}<span class="sr-only">${e ? " (earned)" : " (not yet)"}</span></span>`;
-            }).join("")}</div>
+          <section class="panel">
+            <h3>My progress</h3>
+            <div class="bar" role="img" aria-label="${pct(s)} percent done"><span style="width:${pct(s)}%"></span></div>
+            <p class="small" style="margin:8px 0 0"><b>${doneCount(s)}</b> of ${s.plan.sessions.length} sessions done</p>
+            ${s.earnedBadges.length ? `<p class="badge-row" aria-label="Badges earned">${BADGES.filter(b => s.earnedBadges.includes(b.id)).map(b => `<span title="${b.name}">${b.e}</span>`).join("")}</p>` : ""}
           </section>
+          ${nudges()}
         </div>
       </div>
 
-      ${tutorialTeaser()}
+      ${tipOfTheDay()}`;
+  }
 
-      ${s.plan ? `<section class="panel" style="margin-top:20px"><div class="panel-title"><h3>Your setup</h3></div><ol class="steps">${steps.map(x => `<li class="${x.done ? "done" : ""}"><div><b>${x.title}</b><span class="small muted">${x.sub}</span></div><a class="btn small ghost" href="${x.href}">Edit</a></li>`).join("")}</ol></section>` : ""}
+  // Suggest at most two optional upgrades at a time.
+  function nudges() {
+    const s = st();
+    const list = [];
+    const noGuide = CFG.EXAMS.filter(e => !s.classes[e.id].topics.length).length;
+    if (noGuide) list.push({ e: "📄", t: "Add your study guides", d: `So your plan knows exactly what to study. ${5 - noGuide} of 5 added.`, href: "#classes" });
+    if (window.Drive.enabled() && !s.drive.calendarSyncedAt) list.push({ e: "🔔", t: "Get reminders", d: "Put your plan on Google Calendar.", act: "exp-gcal" });
+    if (!(s.tutorials || []).length) list.push({ e: "🙋", t: "Plan a tutorial", d: "3:15 to 3:40 p.m. with your teacher.", href: "#week" });
+    if (!S.mpIsSet()) list.push({ e: "🧩", t: "Add your MindPrint", d: "Get study tips that fit how you learn.", href: "#tips/mindprint" });
+    if (!list.length) return "";
+    return `<section class="panel nudges" aria-labelledby="nudge-h">
+      <h3 id="nudge-h">Make your plan even better</h3>
+      ${list.slice(0, 2).map(n => n.href
+        ? `<a class="nudge" href="${n.href}"><span class="e" aria-hidden="true">${n.e}</span><span><b>${n.t}</b><span class="small">${n.d}</span></span></a>`
+        : `<button class="nudge" data-act="${n.act}"><span class="e" aria-hidden="true">${n.e}</span><span><b>${n.t}</b><span class="small">${n.d}</span></span></button>`).join("")}
+    </section>`;
+  }
 
-      <section style="margin-top:28px" aria-labelledby="explore-title">
-        <h2 id="explore-title">Explore</h2>
-        <div class="downloads">
-          ${C.lab.map(t => `<a class="dl" href="#lab" data-act="lab-go" data-tab="${t.id}" style="text-decoration:none;color:inherit"><span class="e" aria-hidden="true">${t.emoji}</span><b>${t.title}</b><span>${esc(t.blurb.split(". ")[0].replace(/\.$/, ""))}.</span></a>`).join("")}
-          <a class="dl" href="#time" style="text-decoration:none;color:inherit"><span class="e" aria-hidden="true">⏱️</span><b>Extended time</b><span>How to use every minute you have.</span></a>
-          <a class="dl" href="#mindprint" style="text-decoration:none;color:inherit"><span class="e" aria-hidden="true">🧩</span><b>MindPrint match</b><span>Study strategies picked for how you learn.</span></a>
+  function tipOfTheDay() {
+    const cards = C.tips.filter(t => t.cards).flatMap(t => t.cards.map(c => Object.assign({ topic: t.id }, c)));
+    const day = Math.floor(new Date().setHours(0, 0, 0, 0) / 86400000);
+    const c = cards[day % cards.length];
+    return `<section class="panel tip-day" aria-labelledby="tod-h" style="margin-top:20px">
+      <span class="tod-emoji" aria-hidden="true">💡</span>
+      <div><h3 id="tod-h">Tip of the day: ${esc(c.title)}</h3><p style="margin:0">${esc(c.body)} <b>Try it:</b> ${esc(c.try)}</p>
+      <a class="small" href="#tips/${c.topic}">More tips like this</a></div>
+    </section>`;
+  }
+
+  /* ======================================================================
+     GUIDED SETUP (#start/1 ... #start/5, then #start/done)
+     ====================================================================== */
+  function pageStart(step) {
+    if (step === "done") return wizardDone();
+    const n = Math.min(WIZ_STEPS, Math.max(1, Number(step) || 1));
+    const steps = { 1: wizAboutYou, 2: wizClasses, 3: wizBusy, 4: wizStudyTimes, 5: wizExtras };
+    const last = n === WIZ_STEPS;
+    return `
+      <section class="wizard" aria-labelledby="wiz-h">
+        <div class="wiz-progress">
+          <span class="small">Step ${n} of ${WIZ_STEPS}</span>
+          <div class="bar"><span style="width:${(n / WIZ_STEPS) * 100}%"></span></div>
+        </div>
+        ${steps[n]()}
+        <div class="wiz-nav">
+          ${n > 1 ? `<a class="btn ghost" href="#start/${n - 1}">Back</a>` : `<a class="btn ghost" href="#today">Cancel</a>`}
+          ${last ? `<button class="btn big" data-act="wiz-finish">Make my plan</button>` : `<a class="btn big" href="#start/${n + 1}">Next</a>`}
         </div>
       </section>`;
+  }
+
+  function wizAboutYou() {
+    const p = st().profile;
+    const lastExam = CFG.EXAMS.find(e => e.id === "lang");
+    return `
+      <h1 id="wiz-h">First, a little about you</h1>
+      <div class="field"><label for="p-name">What's your first name? <span class="muted">(optional)</span></label><input id="p-name" type="text" data-bind="profile.name" value="${esc(p.name)}" autocomplete="given-name"></div>
+      <div class="field"><label>What grade are you in?</label><div class="seg">${["7", "8"].map(g => `<button type="button" data-act="set" data-path="profile.gradeLevel" data-v="${g}" aria-pressed="${p.gradeLevel === g}">${g}th grade</button>`).join("")}</div></div>
+      <div class="field"><label>Is your last exam (${D.pretty(lastExam.date, false)}) World Language or Literature?</label><div class="seg">${["World Language", "Literature"].map(g => `<button type="button" data-act="set" data-path="profile.langChoice" data-v="${g}" aria-pressed="${p.langChoice === g}">${g}</button>`).join("")}</div></div>
+      ${p.langChoice === "World Language" ? `<div class="field"><label for="p-lang">Which language? <span class="muted">(optional)</span></label><input id="p-lang" type="text" data-bind="profile.langName" value="${esc(p.langName)}" placeholder="Spanish, French, Latin..."></div>` : ""}`;
+  }
+
+  function wizClasses() {
+    const s = st();
+    return `
+      <h1 id="wiz-h">How are your classes going?</h1>
+      <p class="muted">Tap the face that matches how you feel. Classes you're less sure about get more study time. Don't know your grade? Leave it blank.</p>
+      <div class="wiz-classes">${CFG.EXAMS.map(e => {
+        const c = s.classes[e.id];
+        return `<div class="wiz-class" style="${colorVars(e.id)}">
+          <div class="wc-name"><span aria-hidden="true">${e.icon}</span><span><b>${esc(S.className(e.id))}</b><span class="xs muted">Exam ${D.pretty(e.date, false)}</span></span></div>
+          <div class="wc-grade"><label class="sr-only" for="g-${e.id}">${esc(S.className(e.id))} grade</label><input id="g-${e.id}" type="text" inputmode="decimal" data-bind="classes.${e.id}.grade" data-plan="1" value="${esc(c.grade)}" placeholder="Grade"></div>
+          <div class="conf" role="group" aria-label="How you feel about ${esc(S.className(e.id))}">${confButtons("class-conf", c.confidence, `data-class="${e.id}"`)}</div>
+        </div>`;
+      }).join("")}</div>`;
+  }
+
+  function wizBusy() {
+    return `
+      <h1 id="wiz-h">What's already on your calendar?</h1>
+      <p class="muted">Add things like practices, rehearsals, or lessons so your plan works around them. Nothing to add? Just tap Next.</p>
+      ${busyEditor()}`;
+  }
+
+  function wizStudyTimes() {
+    return `<h1 id="wiz-h">When do you like to study?</h1>${studyTimeChoices()}`;
+  }
+
+  function wizExtras() {
+    const s = st();
+    const opts = [["none", "No"], ["1.5", "Time and a half"], ["2", "Double time"], ["unsure", "Not sure"]];
+    return `
+      <h1 id="wiz-h">Two last questions</h1>
+      <p class="muted">Both are optional.</p>
+      <div class="field"><label>Do you get extended time on tests?</label>
+        <div class="seg">${opts.map(([v, l]) => `<button type="button" data-act="set" data-path="accom.extended" data-plan="1" data-v="${v}" aria-pressed="${s.accom.extended === v}">${l}</button>`).join("")}</div>
+        ${s.accom.extended === "unsure" ? `<p class="xs muted" style="margin:6px 0 0">That's OK. Ask your advisor, then update it in Tips &gt; Extended time.</p>` : ""}
+      </div>
+      <div class="field" style="margin-top:20px"><label>Do you have your MindPrint report?</label>
+        ${S.mpIsSet() ? `<p class="small">✓ MindPrint added.</p>` : `
+        <label class="drop" data-mpdrop>
+          <input type="file" accept=".pdf,.docx,.txt,image/*" data-mpupload>
+          📤 Upload my MindPrint report<br><span class="xs muted">The PDF from MindPrint. You can skip this and add it later.</span>
+        </label>`}
+      </div>`;
+  }
+
+  function wizardDone() {
+    const s = st();
+    if (!s.plan) return `<section class="wizard"><h1>Let's make your plan</h1><a class="btn big" href="#start/1">Start</a></section>`;
+    const first = s.plan.sessions.find(x => !x.done && x.date >= D.today());
+    return `
+      <section class="wizard done-screen">
+        <div class="big-emoji" aria-hidden="true">🎉</div>
+        <h1>Your plan is ready${s.profile.name ? `, ${esc(s.profile.name)}` : ""}.</h1>
+        <p>You have <b>${s.plan.sessions.length} short study sessions</b> before exams. You don't have to figure out what to study. Just open Exam Prep HQ and do what's on Today.</p>
+        ${first ? `<h3 style="margin-top:18px">Your first session: ${D.pretty(first.date)}</h3><div class="sessions" style="text-align:left">${sessionCard(first)}</div>` : ""}
+        <h3 style="margin-top:24px">Put it where you'll see it</h3>
+        <div class="btn-row" style="justify-content:center">
+          ${window.Drive.enabled() ? `<button class="btn" data-act="exp-gcal">🔔 Add to Google Calendar</button>` : ""}
+          <button class="btn ${window.Drive.enabled() ? "ghost" : ""}" data-act="exp-print">🖨️ Print it</button>
+        </div>
+        <p style="margin-top:24px"><a class="btn ghost" href="#today">Go to Today</a></p>
+      </section>`;
+  }
+
+  /* ---------- Shared editors (used in setup and on My week) ---------- */
+  const PRESETS = [["⚽", "Practice"], ["🏀", "Game"], ["🎭", "Rehearsal"], ["🎵", "Lesson"], ["📖", "Tutoring"], ["🙏", "Religious service"], ["🍽️", "Family time"], ["➕", "Something else"]];
+
+  function busyEditor() {
+    const s = st();
+    const list = s.busy.length ? `<ul class="busy-list">${s.busy.map(b => `
+      <li class="busy-item">
+        <span class="grow"><b>${esc(b.label || "Busy")}</b><br><span class="when">${b.type === "weekly"
+          ? `Every ${(b.days || []).map(d => D.daysShort[d]).join(", ")}`
+          : D.pretty(b.date)}, ${D.clock(b.start)} to ${D.clock(b.end)}</span></span>
+        <button class="icon-btn" data-act="busy-del" data-id="${b.id}" aria-label="Remove ${esc(b.label)}">🗑️</button>
+      </li>`).join("")}</ul>` : "";
+
+    const form = ui.busyOpen ? `
+      <form data-busyform class="busy-form">
+        <div class="field"><label for="b-label">What is it?</label><input id="b-label" type="text" value="${esc(ui.busyLabel === "Something else" ? "" : ui.busyLabel)}" required></div>
+        <div class="field"><label>How often?</label>
+          <div class="seg">
+            <button type="button" data-act="busy-type" data-v="weekly" aria-pressed="${ui.busyType === "weekly"}">Every week</button>
+            <button type="button" data-act="busy-type" data-v="once" aria-pressed="${ui.busyType === "once"}">Just once</button>
+          </div>
+        </div>
+        ${ui.busyType === "weekly"
+          ? `<fieldset class="field" style="border:0;padding:0;margin:0 0 14px"><legend class="small" style="font-weight:600;margin-bottom:4px">Which days?</legend><div class="daypick">${D.daysShort.map((d, i) => `<label><input type="checkbox" name="day" value="${i}"><span>${d}</span></label>`).join("")}</div></fieldset>`
+          : `<div class="field"><label for="b-date">Date</label><input id="b-date" type="date" required min="${D.today()}"></div>`}
+        <div class="fields">
+          <div class="field"><label for="b-start">Starts</label><input id="b-start" type="time" value="16:00" required></div>
+          <div class="field"><label for="b-end">Ends (with travel)</label><input id="b-end" type="time" value="17:30" required></div>
+        </div>
+        <div class="btn-row"><button class="btn" type="submit">Add it</button><button class="btn ghost" type="button" data-act="busy-cancel">Cancel</button></div>
+      </form>` : `<div class="chips" style="margin-top:12px">${PRESETS.map(([e, l]) => `<button class="chip" type="button" data-act="preset" data-label="${l}">${e} ${l}</button>`).join("")}</div>`;
+
+    return `${list}${form}`;
+  }
+
+  function studyTimeChoices() {
+    const p = st().prefs;
+    const pick = (list, which) => list.map(o => {
+      const on = p[`${which}Start`] === o.start && p[`${which}End`] === o.end;
+      return `<button type="button" class="choice" data-act="study-time" data-which="${which}" data-start="${o.start}" data-end="${o.end}" aria-pressed="${on}"><b>${o.label}</b><span>${o.sub}</span></button>`;
+    }).join("");
+    const free = [[-1, "No"], [6, "Saturday"], [0, "Sunday"]];
+    return `
+      <div class="field"><label>On school days</label><div class="choices">${pick(WEEKDAY_TIMES, "weekday")}</div></div>
+      <div class="field"><label>On weekends</label><div class="choices">${pick(WEEKEND_TIMES, "weekend")}</div></div>
+      <div class="field"><label>Want one day a week with no studying at all?</label>
+        <div class="seg">${free.map(([v, l]) => `<button type="button" data-act="set" data-path="prefs.freeDay" data-num="1" data-plan="1" data-v="${v}" aria-pressed="${Number(p.freeDay) === v}">${l}</button>`).join("")}</div>
+        <p class="xs muted" style="margin:6px 0 0">Rest helps your memory. Each session is ${p.sessionLen} minutes with a break after.</p>
+      </div>`;
+  }
+
+  /* ======================================================================
+     MY PLAN
+     ====================================================================== */
+  function pagePlan() {
+    const s = st();
+    if (!s.plan) {
+      return `<div class="page-head"><h1>My plan</h1></div>
+        <section class="panel empty"><p class="big-emoji" aria-hidden="true">🗓️</p><h3>You don't have a plan yet</h3><p>It takes about 5 minutes.</p><a class="btn big" href="#start/1">Make my plan</a></section>`;
+    }
+    const plan = s.plan;
+    const today = D.today();
+    const thisWeek = D.addDays(today, -D.dow(today));
+    const dates = new Set(plan.sessions.map(x => x.date));
+    CFG.EXAMS.forEach(e => dates.add(e.date));
+    (s.tutorials || []).forEach(t => dates.add(t.date));
+
+    const weeks = {};
+    Array.from(dates).sort().forEach(d => { const w = D.addDays(d, -D.dow(d)); (weeks[w] = weeks[w] || []).push(d); });
+    const weekKeys = Object.keys(weeks).sort();
+    const past = weekKeys.filter(w => w < thisWeek);
+    const current = weekKeys.filter(w => w >= thisWeek);
+
+    const dayHTML = d => {
+      const exams = CFG.EXAMS.filter(e => e.date === d);
+      const tuts = (s.tutorials || []).filter(t => t.date === d);
+      const ses = plan.sessions.filter(x => x.date === d);
+      return `<div class="day ${d === today ? "today" : ""}">
+        <div class="day-label"><b>${D.days[D.dow(d)]}</b><span>${D.pretty(d, false)}${d === today ? ", today" : ""}</span></div>
+        <div class="sessions">
+          ${exams.map(e => `<div class="exam-pill" style="${colorVars(e.id)}">⭐ ${esc(S.className(e.id))} exam (${S.examMinutes()} min)</div>`).join("")}
+          ${tuts.map(tutorialPill).join("")}
+          ${ses.map(sessionCard).join("")}
+        </div>
+      </div>`;
+    };
+    const weekHTML = (w, open) => {
+      const n = weeks[w].reduce((c, d) => c + plan.sessions.filter(x => x.date === d).length, 0);
+      const done = weeks[w].reduce((c, d) => c + plan.sessions.filter(x => x.date === d && x.done).length, 0);
+      const label = w === thisWeek ? "This week" : w === D.addDays(thisWeek, 7) ? "Next week" : `Week of ${D.pretty(w, false)}`;
+      return `<details class="week" ${open ? "open" : ""}>
+        <summary><h3>${label}</h3><span class="small muted">${done} of ${n} done</span></summary>
+        ${weeks[w].map(dayHTML).join("")}
+      </details>`;
+    };
+
+    return `
+      <div class="page-head"><h1>My plan</h1><p>Check off each session when you finish it.</p></div>
+      <div class="plan-bar no-print">
+        <button class="btn" data-act="save-menu">💾 Save my plan</button>
+        <button class="btn ghost" data-act="build">🔄 Update my plan</button>
+      </div>
+      ${s.planStale ? `<div class="warn">You changed some things. Tap <b>Update my plan</b> to catch up. Finished sessions stay checked off.</div>` : ""}
+      ${calendarStale() ? `<div class="warn">Your Google Calendar has an old version. <button class="linkish" data-act="exp-gcal">Update it</button></div>` : ""}
+      ${plan.warnings.map(w => `<div class="warn">${esc(w)}</div>`).join("")}
+      ${past.length ? `<p class="no-print"><button class="linkish small" data-act="toggle-past">${ui.showPast ? "Hide" : "Show"} past weeks</button></p>${ui.showPast ? past.map(w => weekHTML(w, false)).join("") : ""}` : ""}
+      ${current.map((w, i) => weekHTML(w, i === 0)).join("")}
+      <p class="small muted no-print" style="margin-top:30px">Want to start completely over? <button class="linkish" data-act="reset">Erase everything</button></p>`;
+  }
+
+  function calendarStale() {
+    const s = st();
+    const synced = s.drive.calendarSyncedAt || 0;
+    if (!synced || !s.plan) return false;
+    return synced < Math.max(s.plan.generatedAt || 0, s.tutorialsUpdatedAt || 0);
+  }
+
+  function saveMenu() {
+    const on = window.Drive.enabled();
+    const signedIn = !!window.Drive.user;
+    openModal(`
+      <div class="modal-body">
+        <h3>Save my plan</h3>
+        <div class="save-options">
+          ${on ? `<button class="dl featured" data-act="exp-gcal"><span class="e" aria-hidden="true">🔔</span><b>${st().drive.calendarSyncedAt ? "Update" : "Add to"} Google Calendar</b><span>Get a reminder before every session.</span></button>` : ""}
+          <button class="dl" data-act="exp-print"><span class="e" aria-hidden="true">🖨️</span><b>Print it</b><span>Or save it as a PDF.</span></button>
+        </div>
+        <details class="more">
+          <summary class="small">More ways to save</summary>
+          <div class="save-options small-options">
+            <button class="dl" data-act="exp-gdoc" ${signedIn ? "" : "disabled"}><b>Google Doc</b><span>${signedIn ? "Saved in your Drive" : "Sign in first"}</span></button>
+            <button class="dl" data-act="exp-gsheet" ${signedIn ? "" : "disabled"}><b>Google Sheet</b><span>${signedIn ? "Saved in your Drive" : "Sign in first"}</span></button>
+            <button class="dl" data-act="exp-word"><b>Word file</b><span>Download</span></button>
+            <button class="dl" data-act="exp-ics"><b>Calendar file</b><span>For Apple Calendar or Outlook</span></button>
+            <button class="dl" data-act="exp-csv"><b>Spreadsheet</b><span>For Excel or Numbers</span></button>
+          </div>
+        </details>
+      </div>
+      <div class="modal-foot"><button class="btn ghost" data-act="modal-close">Close</button></div>`);
+  }
+
+  function buildPlan() {
+    const s = st();
+    s.plan = window.Planner.generate(s);
+    s.planStale = false;
+    save();
+    toast(s.drive.calendarSyncedAt ? "Plan updated. Update Google Calendar to match." : "Your plan is updated.");
   }
 
   /* ======================================================================
@@ -297,87 +521,298 @@
      ====================================================================== */
   function pageClasses() {
     const s = st();
-    const p = s.profile;
     return `
-      <div class="page-head">
-        <h1>My classes</h1>
-        <p>For each class, add your current grade, your study guide, and how confident you feel. Be honest: the shaky stuff gets more study time.</p>
-      </div>
-
-      <section class="panel" style="margin-bottom:20px">
-        <div class="fields">
-          <div class="field"><label for="p-name">First name (optional)</label><input id="p-name" type="text" data-bind="profile.name" value="${esc(p.name)}" autocomplete="given-name"></div>
-          <div class="field"><label>Grade</label><div class="seg">${["7", "8"].map(g => `<button type="button" data-act="set" data-path="profile.gradeLevel" data-v="${g}" aria-pressed="${p.gradeLevel === g}">${g}th grade</button>`).join("")}</div></div>
-          <div class="field"><label>Your last exam is</label><div class="seg">${["World Language", "Literature"].map(g => `<button type="button" data-act="set" data-path="profile.langChoice" data-v="${g}" aria-pressed="${p.langChoice === g}">${g}</button>`).join("")}</div></div>
-          ${p.langChoice === "World Language" ? `<div class="field"><label for="p-lang">Which language?</label><input id="p-lang" type="text" data-bind="profile.langName" data-rerender="1" value="${esc(p.langName)}" placeholder="Spanish, French, Latin..."></div>` : ""}
-        </div>
-      </section>
-
-      <div class="stack">${CFG.EXAMS.map(classCard).join("")}</div>
-
-      <div class="btn-row" style="margin-top:24px">
-        <a class="btn big" href="#calendar">Next: my calendar</a>
-      </div>`;
+      <div class="page-head"><h1>My classes</h1><p>Add your study guide topics so your plan knows exactly what to study. Tap a class to open it.</p></div>
+      <div class="stack">${CFG.EXAMS.map(e => classCard(e)).join("")}</div>
+      ${s.plan && s.planStale ? `<div class="btn-row" style="margin-top:20px"><button class="btn big" data-act="build">Update my plan</button></div>` : ""}`;
   }
 
   function classCard(e) {
     const c = st().classes[e.id];
     const name = S.className(e.id);
-    const guides = c.guides.length ? `<ul class="guide-files">${c.guides.map((g, i) =>
-      `<li>📄 ${g.link ? `<a href="${esc(g.link)}" target="_blank" rel="noopener">${esc(g.name)}</a>` : esc(g.name)}
-        <button class="icon-btn" data-act="guide-del" data-class="${e.id}" data-i="${i}" aria-label="Remove ${esc(g.name)}">✕</button></li>`).join("")}</ul>` : "";
-    const topics = c.topics.length
-      ? `<ul class="topics">${c.topics.map(t => `
-          <li class="topic">
-            <input type="text" value="${esc(t.text)}" data-topic="${e.id}|${t.id}" aria-label="Topic name">
-            <div class="conf" role="group" aria-label="How confident: ${esc(t.text)}">${confButtons("topic-conf", t.conf, `data-class="${e.id}" data-id="${t.id}"`)}</div>
-            <button class="icon-btn" data-act="topic-del" data-class="${e.id}" data-id="${t.id}" aria-label="Delete topic ${esc(t.text)}">🗑️</button>
-          </li>`).join("")}</ul>`
-      : `<p class="small muted">No topics yet. Upload or paste your study guide, or type the topics below. If you skip this, your plan uses general review topics for ${esc(name)}.</p>`;
+    const open = ui.openClass === e.id;
+    const feel = C.confidence.find(x => x.v === Number(c.confidence));
+    const status = c.topics.length ? `${c.topics.length} topic${c.topics.length === 1 ? "" : "s"}` : "No study guide yet";
+
+    const body = !open ? "" : `
+      <div class="class-body">
+        <div>
+          <div class="field"><label for="g-${e.id}">My grade</label><input id="g-${e.id}" type="text" inputmode="decimal" data-bind="classes.${e.id}.grade" data-plan="1" value="${esc(c.grade)}" placeholder="Like 88 or B+"></div>
+          <div class="field"><label id="cl-${e.id}">How I feel about this class</label><div class="conf" role="group" aria-labelledby="cl-${e.id}">${confButtons("class-conf", c.confidence, `data-class="${e.id}"`)}</div></div>
+          <label class="drop" data-drop="${e.id}">
+            <input type="file" accept=".pdf,.docx,.txt,image/*" multiple data-upload="${e.id}">
+            📤 Upload study guide<br><span class="xs muted">PDF, Word, or photo</span>
+          </label>
+          ${c.guides.length ? `<ul class="guide-files">${c.guides.map((g, i) => `<li>📄 ${g.link ? `<a href="${esc(g.link)}" target="_blank" rel="noopener">${esc(g.name)}</a>` : esc(g.name)} <button class="icon-btn" data-act="guide-del" data-class="${e.id}" data-i="${i}" aria-label="Remove ${esc(g.name)}">✕</button></li>`).join("")}</ul>` : ""}
+          <button class="linkish small" style="margin-top:8px" data-act="paste" data-class="${e.id}">Or paste the text</button>
+        </div>
+        <div>
+          <h4>Study guide topics</h4>
+          ${c.topics.length ? `<p class="xs muted" style="margin:-4px 0 6px">Tap a face for each one. Shaky topics get more practice.</p><ul class="topics">${c.topics.map(t => `
+            <li class="topic">
+              <input type="text" value="${esc(t.text)}" data-topic="${e.id}|${t.id}" aria-label="Topic name">
+              <div class="conf" role="group" aria-label="How you feel about ${esc(t.text)}">${confButtons("topic-conf", t.conf, `data-class="${e.id}" data-id="${t.id}"`)}</div>
+              <button class="icon-btn" data-act="topic-del" data-class="${e.id}" data-id="${t.id}" aria-label="Delete ${esc(t.text)}">🗑️</button>
+            </li>`).join("")}</ul>` : `<p class="small muted">Upload your study guide and we'll find the topics. Or type them below.</p>`}
+          <form class="btn-row" style="margin-top:10px" data-addtopic="${e.id}">
+            <label class="sr-only" for="add-${e.id}">Add a topic</label>
+            <input id="add-${e.id}" type="text" placeholder="Add a topic" style="flex:1;min-width:160px">
+            <button class="btn small" type="submit">Add</button>
+          </form>
+          <label for="q-${e.id}" style="margin-top:16px">Questions for my teacher <span class="muted">(bring these to tutorials)</span></label>
+          <textarea id="q-${e.id}" data-bind="classes.${e.id}.questions" placeholder="${esc(QUESTION_EXAMPLES[e.id] || "")}">${esc(c.questions)}</textarea>
+        </div>
+      </div>`;
+
+    return `<section class="class-card ${open ? "open" : ""}" style="${colorVars(e.id)}">
+      <button class="class-head" data-act="class-toggle" data-class="${e.id}" aria-expanded="${open}">
+        <span class="icon" aria-hidden="true">${e.icon}</span>
+        <span class="ch-text"><b>${esc(name)}</b><span class="xs">Exam ${D.pretty(e.date)}</span></span>
+        <span class="ch-meta">${c.grade ? `<span class="pill">${esc(c.grade)}</span>` : ""}<span aria-label="${feel ? feel.label : ""}">${feel ? feel.emoji : ""}</span><span class="xs ${c.topics.length ? "" : "muted"}">${status}</span></span>
+        <span class="chev" aria-hidden="true">${open ? "▲" : "▼"}</span>
+      </button>
+      ${body}
+    </section>`;
+  }
+
+  const QUESTION_EXAMPLES = {
+    english: "Like: How do I pick strong evidence for a theme paragraph?",
+    science: "Like: What's the difference between mitosis and meiosis?",
+    social: "Like: How do I explain causes in a short answer?",
+    math: "Like: When do I flip the inequality sign?",
+    lang: "Like: When do I use one verb tense instead of another?"
+  };
+
+  /* ======================================================================
+     MY WEEK
+     ====================================================================== */
+  function pageWeek() {
+    const s = st();
+    const p = s.prefs;
+    const today = D.today();
+    const lastExam = CFG.EXAMS.map(e => e.date).sort().slice(-1)[0];
+    const tuts = (s.tutorials || []).slice().sort((a, b) => a.date.localeCompare(b.date));
+    const tutTime = `${D.clock(CFG.TUTORIAL_START)} to ${D.clock(CFG.TUTORIAL_END)}`;
 
     return `
-      <section class="class-card" style="${classColorVars(e.id)}" aria-labelledby="h-${e.id}">
-        <div class="class-head">
-          <span class="icon" aria-hidden="true">${e.icon}</span>
-          <div><h3 id="h-${e.id}">${esc(name)}</h3><span class="date">Exam: ${D.pretty(e.date)}</span></div>
-        </div>
-        <div class="class-body">
-          <div>
-            <div class="field">
-              <label for="g-${e.id}">Current grade</label>
-              <input id="g-${e.id}" type="text" inputmode="decimal" data-bind="classes.${e.id}.grade" data-plan="1" value="${esc(c.grade)}" placeholder="Like 88 or B+">
-            </div>
-            <div class="field">
-              <label id="cl-${e.id}">How do you feel about this class overall?</label>
-              <div class="conf" role="group" aria-labelledby="cl-${e.id}">${confButtons("class-conf", c.confidence, `data-class="${e.id}"`)}</div>
-            </div>
-            <div class="field">
-              <label class="drop" data-drop="${e.id}">
-                <input type="file" accept=".pdf,.docx,.txt,image/*" multiple data-upload="${e.id}">
-                📤 Upload study guide<br><span class="xs muted">PDF, Word, or photo. Drag it here or tap.</span>
-              </label>
-              ${guides}
-              <button class="linkish small" style="margin-top:8px" data-act="paste" data-class="${e.id}">Paste the study guide text instead</button>
-            </div>
+      <div class="page-head"><h1>My week</h1><p>Tell your plan what's going on, and it works around it.</p></div>
+
+      <section class="panel" aria-labelledby="tut-h">
+        <div class="panel-title"><h3 id="tut-h">🙋 Tutorials <span class="small muted" style="font-weight:500">${tutTime}</span></h3></div>
+        <form class="tut-form" data-tutform>
+          <div class="field"><label for="t-class">Which class?</label>
+            <select id="t-class">${CFG.EXAMS.map(e => `<option value="${e.id}">${esc(S.className(e.id))}</option>`).join("")}</select></div>
+          <div class="field"><label for="t-date">Which day?</label><input id="t-date" type="date" min="${today}" max="${lastExam}" required></div>
+          <button class="btn" type="submit">Add tutorial</button>
+        </form>
+        ${tuts.length ? `<ul class="busy-list">${tuts.map(t => `
+          <li class="busy-item tut-item ${t.done ? "done" : ""}" style="${colorVars(t.classId)}">
+            <button class="check" data-act="tut-done" data-id="${t.id}" aria-pressed="${!!t.done}" aria-label="I went to the ${esc(S.className(t.classId))} tutorial">${t.done ? "✓" : ""}</button>
+            <span class="grow"><b>${esc(S.className(t.classId))}</b><br><span class="when">${D.pretty(t.date)}${t.done ? ", went ✓" : ""}</span></span>
+            <button class="icon-btn" data-act="tut-del" data-id="${t.id}" aria-label="Remove">🗑️</button>
+          </li>`).join("")}</ul>` : `<p class="small muted" style="margin-top:10px">Start with the class you feel shakiest about. <a href="#tips/tutorials">How to get the most from tutorials</a></p>`}
+      </section>
+
+      <section class="panel" style="margin-top:20px" aria-labelledby="busy-h">
+        <div class="panel-title"><h3 id="busy-h">📅 Busy times</h3></div>
+        <p class="small muted">Practices, rehearsals, lessons, family plans.</p>
+        ${busyEditor()}
+      </section>
+
+      <section class="panel" style="margin-top:20px" aria-labelledby="study-h">
+        <div class="panel-title"><h3 id="study-h">📚 When I study</h3></div>
+        ${studyTimeChoices()}
+        <details class="more">
+          <summary class="small">More options</summary>
+          <div class="fields" style="margin-top:12px">
+            <div class="field"><label for="wd-s">School days from</label><input id="wd-s" type="time" data-bind="prefs.weekdayStart" data-plan="1" data-rerender="1" value="${p.weekdayStart}"></div>
+            <div class="field"><label for="wd-e">until</label><input id="wd-e" type="time" data-bind="prefs.weekdayEnd" data-plan="1" data-rerender="1" value="${p.weekdayEnd}"></div>
+            <div class="field"><label for="we-s">Weekends from</label><input id="we-s" type="time" data-bind="prefs.weekendStart" data-plan="1" data-rerender="1" value="${p.weekendStart}"></div>
+            <div class="field"><label for="we-e">until</label><input id="we-e" type="time" data-bind="prefs.weekendEnd" data-plan="1" data-rerender="1" value="${p.weekendEnd}"></div>
           </div>
-          <div>
-            <h4>Study guide topics <span class="small muted" style="font-weight:500">(rate each one 😵 to 😎)</span></h4>
-            ${topics}
-            <form class="btn-row" style="margin-top:10px" data-addtopic="${e.id}">
-              <label class="sr-only" for="add-${e.id}">Add a topic</label>
-              <input id="add-${e.id}" type="text" placeholder="Add a topic, like &quot;Unit 3: Ecosystems&quot;" style="flex:1;min-width:180px">
-              <button class="btn small" type="submit">Add</button>
-            </form>
+          <div class="field"><label>Session length</label><div class="seg">${[20, 25, 30, 45].map(v => `<button type="button" data-act="set" data-path="prefs.sessionLen" data-num="1" data-plan="1" data-v="${v}" aria-pressed="${Number(p.sessionLen) === v}">${v} min</button>`).join("")}</div></div>
+          <div class="field"><label>Most sessions on a school day</label><div class="seg">${[1, 2, 3].map(v => `<button type="button" data-act="set" data-path="prefs.maxWeekday" data-num="1" data-plan="1" data-v="${v}" aria-pressed="${Number(p.maxWeekday) === v}">${v}</button>`).join("")}</div></div>
+          <div class="field"><label>Days off (no studying)</label>
+            <form class="btn-row" data-offform><label class="sr-only" for="off-date">Day off</label><input id="off-date" type="date" style="max-width:200px" required><button class="btn small" type="submit">Add</button></form>
+            <div class="chips" style="margin-top:8px">${(p.offDates || []).sort().map(d => `<button class="chip" data-act="off-del" data-d="${d}" aria-label="Remove ${D.pretty(d)}">${D.pretty(d)} ✕</button>`).join("")}</div>
           </div>
+        </details>
+      </section>
+
+      ${s.plan ? `<div class="btn-row" style="margin-top:20px"><button class="btn big" data-act="build">Update my plan</button></div>` : `<div class="btn-row" style="margin-top:20px"><a class="btn big" href="#start/1">Make my plan</a></div>`}`;
+  }
+
+  /* ======================================================================
+     TIPS
+     ====================================================================== */
+  function pageTips(id) {
+    if (!id) {
+      return `
+        <div class="page-head"><h1>Tips</h1><p>Short and useful. Pick one.</p></div>
+        <div class="tip-grid">${C.tips.map(t => `<a class="tip-card" href="#tips/${t.id}"><span class="e" aria-hidden="true">${t.emoji}</span><b>${esc(t.title)}</b><span>${esc(t.blurb)}</span></a>`).join("")}</div>`;
+    }
+    const t = C.tips.find(x => x.id === id);
+    if (!t) return pageTips();
+    const back = `<a class="back" href="#tips">← All tips</a>`;
+    const head = `<div class="page-head">${back}<h1><span aria-hidden="true">${t.emoji}</span> ${esc(t.title)}</h1></div>`;
+
+    if (id === "tutorials") return head + tipsTutorials();
+    if (id === "time") return head + tipsTime();
+    if (id === "mindprint") return head + tipsMindprint();
+    if (id === "myths") return head + `<p class="muted">Guess, then tap to flip.</p><div class="myths">${C.myths.map((m, i) => `
+      <button class="flip" data-act="flip" data-i="${i}" aria-pressed="${!!ui.flipped[i]}">
+        <span class="flip-inner">
+          <span class="face front"><span style="font-weight:700;font-size:1.05rem">${esc(m.claim)}</span><small>Tap to flip</small></span>
+          <span class="face back"><span class="verdict ${m.answer.toLowerCase()}">${m.answer}</span><span class="small">${esc(m.why)}</span></span>
+        </span>
+      </button>`).join("")}</div>`;
+    if (t.checklist) return head + `<section class="panel"><ul class="checklist">${t.checklist.map((c, i) => `<li><label><input type="checkbox" data-examcheck="${i}" ${ui.examChecks[i] ? "checked" : ""}> ${esc(c)}</label></li>`).join("")}</ul></section>`;
+    return head + `<p class="muted">${esc(t.blurb)}</p><div class="tip-list">${t.cards.map(c => `
+      <section class="tip-item"><h3>${esc(c.title)}</h3><p>${esc(c.body)}</p><div class="try"><b>Try it:</b> ${esc(c.try)}</div></section>`).join("")}</div>`;
+  }
+
+  function tipsTutorials() {
+    const T = C.tutorials;
+    const s = st();
+    const topics = CFG.EXAMS.map(e => ({ e, list: askTopics(e.id).slice(0, 3) })).filter(x => x.list.length);
+    return `
+      <p class="lead">${esc(T.intro)} They're ${D.clock(CFG.TUTORIAL_START)} to ${D.clock(CFG.TUTORIAL_END)}</p>
+      <div class="phases">${T.phases.map(ph => `<section class="panel phase"><h3><span aria-hidden="true">${ph.emoji}</span> ${esc(ph.title)}</h3><ul>${ph.items.map(i => `<li>${esc(i)}</li>`).join("")}</ul></section>`).join("")}</div>
+      <div class="grid two" style="margin-top:20px;align-items:start">
+        <section class="panel"><h3>Topics to ask about</h3>
+          ${topics.length ? topics.map(x => `<div class="ask" style="${colorVars(x.e.id)}"><b>${esc(S.className(x.e.id))}</b><ul>${x.list.map(t => `<li>${esc(t)}</li>`).join("")}</ul></div>`).join("")
+            : `<p class="small muted">These come from the topics you rate on <a href="#classes">My classes</a>. Your shakiest ones show up here.</p>`}
+          <a class="btn small" href="#week" style="margin-top:10px">Plan a tutorial</a>
+        </section>
+        <section class="panel"><h3>Questions that work</h3>
+          <ul class="starters">${T.starters.map(q => `<li>"${esc(q)}"</li>`).join("")}</ul>
+          <h4 style="margin-top:16px">Need to email your teacher?</h4>
+          <div class="try small email">${esc(T.email)}</div>
+          <button class="btn small ghost" style="margin-top:8px" data-act="copy-email">Copy this email</button>
+        </section>
+      </div>`;
+  }
+
+  function tipsTime() {
+    const s = st();
+    const a = s.accom;
+    const base = CFG.EXAM_MINUTES;
+    const total = S.examMinutes();
+    const preview = Math.round(total * 0.07), check = Math.round(total * 0.15), answer = total - preview - check;
+    const half = preview + Math.round(answer / 2);
+    const E = C.extended;
+    const opts = [["none", "No"], ["1.5", "Time and a half"], ["2", "Double time"], ["custom", "Something else"]];
+    return `
+      <section class="panel">
+        <div class="field"><label>Do you get extended time on tests?</label>
+          <div class="seg">${opts.map(([v, l]) => `<button type="button" data-act="set" data-path="accom.extended" data-plan="1" data-v="${v}" aria-pressed="${a.extended === v}">${l}</button>`).join("")}</div></div>
+        ${a.extended === "custom" ? `<div class="field"><label for="cm">Minutes per exam</label><input id="cm" type="number" min="${base}" max="300" data-bind="accom.customMinutes" data-plan="1" data-rerender="1" value="${esc(a.customMinutes)}" style="max-width:140px"></div>` : ""}
+        <p class="xs muted">Not sure? Ask your advisor.</p>
+        <div class="bignum">${total} minutes</div>
+        <h4 style="margin-top:14px">Your pacing plan</h4>
+        <div class="pace" role="img" aria-label="Look over ${preview} minutes, answer ${answer} minutes, check ${check} minutes">
+          <div class="p1" style="flex:${preview}">${preview}m</div><div class="p2" style="flex:${answer}">Answer: ${answer} min</div><div class="p3" style="flex:${check}">Check ${check}m</div>
         </div>
+        <div class="pace-label"><span>Look it over</span><span>Minute ${half}: about halfway</span><span>Check your work</span></div>
+      </section>
+      <div class="grid two" style="margin-top:20px">
+        <section class="panel"><h3>Why it matters</h3>${E.why.map(w => `<p><b>${esc(w.title)}.</b> ${esc(w.body)}</p>`).join("")}</section>
+        <section class="panel"><h3>Slow down on purpose</h3><ul>${E.slowDown.map(x => `<li>${esc(x)}</li>`).join("")}</ul></section>
+      </div>`;
+  }
+
+  /* ---------- MindPrint ---------- */
+  function tipsMindprint() {
+    const s = st();
+    const set = S.mpIsSet();
+    const upload = `
+      <label class="drop big-drop" data-mpdrop>
+        <input type="file" accept=".pdf,.docx,.txt,image/*" data-mpupload>
+        📤 Upload my MindPrint report<br><span class="xs muted">The PDF from MindPrint. We'll read it and you check it.</span>
+      </label>
+      ${s.mindprintReport ? `<p class="small" style="margin:8px 0 0">📄 ${s.mindprintReport.link ? `<a href="${esc(s.mindprintReport.link)}" target="_blank" rel="noopener">${esc(s.mindprintReport.name)}</a>` : esc(s.mindprintReport.name)}</p>` : ""}`;
+
+    if (!set && !ui.mpEdit) {
+      return `
+        <p class="lead">MindPrint shows how your brain learns best. Add yours and your study sessions will play to your strengths.</p>
+        <section class="panel">${upload}
+          <p class="small" style="margin:12px 0 0">No PDF? <button class="linkish" data-act="mp-edit">Enter it yourself</button>. Don't have a report at all? Ask your advisor.</p>
+        </section>`;
+    }
+    return `
+      ${set ? `<section class="panel playbook">${playbookHTML()}</section>` : ""}
+      <p style="margin-top:16px">${ui.mpEdit ? "" : `<button class="linkish" data-act="mp-edit">Change my MindPrint</button>`}</p>
+      ${ui.mpEdit ? mpEditor(upload) : ""}`;
+  }
+
+  function mpEditor(upload) {
+    const MP = C.mindprint;
+    const m = st().mindprint;
+    return `
+      <section class="panel" style="margin-top:12px">
+        <h3>My MindPrint profile</h3>
+        ${upload}
+        <p class="small muted" style="margin-top:14px">Or match your report by hand: use ▲ ▼ so each box lists your skills in the same order as your report (strongest first). Then tap the box that's highlighted on your report.</p>
+        <div class="mp-boxes">${MP.domains.map(d => {
+          const order = m.order[d.id] || d.skills;
+          const isSet = !!m.order[d.id];
+          const strongest = m.strongest === d.id;
+          return `<div class="mp-box ${strongest ? "strongest" : ""} ${isSet ? "" : "unset"}">
+            <div class="mp-box-head"><h4>${esc(d.name)}</h4></div>
+            <ol class="mp-rank">${order.map((id, i) => `<li class="${i === 0 && isSet ? "first" : ""}">
+              <span class="mp-name">${esc(MP.skills[id].name)}</span>
+              <span class="mp-move">
+                <button class="icon-btn" data-act="mp-move" data-cat="${d.id}" data-skill="${id}" data-dir="-1" ${i === 0 ? "disabled" : ""} aria-label="Move ${esc(MP.skills[id].name)} up">▲</button>
+                <button class="icon-btn" data-act="mp-move" data-cat="${d.id}" data-skill="${id}" data-dir="1" ${i === order.length - 1 ? "disabled" : ""} aria-label="Move ${esc(MP.skills[id].name)} down">▼</button>
+              </span></li>`).join("")}</ol>
+            ${isSet ? "" : `<button class="btn small" data-act="mp-confirm" data-cat="${d.id}">Matches my report</button>`}
+            <button class="mp-star" data-act="mp-strongest" data-cat="${d.id}" aria-pressed="${strongest}">${strongest ? "★ Highlighted on my report" : "☆ Highlighted on my report?"}</button>
+          </div>`;
+        }).join("")}</div>
+        <div class="btn-row" style="margin-top:14px"><button class="btn" data-act="mp-done">Done</button>
+        ${S.mpIsSet() ? `<button class="linkish small" data-act="mp-clear">Clear my MindPrint</button>` : ""}</div>
       </section>`;
   }
 
+  function playbookHTML() {
+    const MP = C.mindprint;
+    const m = st().mindprint;
+    const doms = MP.domains.filter(d => m.order[d.id]);
+    const strongestDom = MP.domains.find(d => d.id === m.strongest && m.order[d.id]);
+    const superSkill = strongestDom ? MP.skills[m.order[strongestDom.id][0]] : null;
+
+    const known = (m.strategies || []).map(name => {
+      const def = MP.strategies.find(x => x.name.toLowerCase() === name.toLowerCase());
+      return def && def.when === "test" ? def : null;
+    }).filter(Boolean);
+    const shown = ui.mpAll ? known : known.slice(0, 3);
+
+    return `
+      ${superSkill ? `<div class="superpower"><span class="sp-emoji" aria-hidden="true">${superSkill.icon}</span><div><b>Your superpower: ${esc(superSkill.name)}</b><span class="small">When you're stuck, start here.</span></div></div>` : ""}
+      <div class="pb-cols">
+        <div><h3 class="pb-sub">Lean on these</h3><ul class="pb-simple">${doms.map(d => {
+          const sk = MP.skills[m.order[d.id][0]];
+          return `<li><b>${esc(sk.name)}:</b> ${esc(sk.strength[0])}</li>`;
+        }).join("")}</ul></div>
+        <div><h3 class="pb-sub">Work around these</h3><ul class="pb-simple">${doms.map(d => {
+          const list = m.order[d.id];
+          const sk = MP.skills[list[list.length - 1]];
+          return `<li><b>${esc(sk.name)}:</b> ${esc(sk.support[0])}</li>`;
+        }).join("")}</ul></div>
+      </div>
+      ${known.length ? `<h3 class="pb-sub">From your report, for exam day</h3>
+        <ul class="strat-list">${shown.map(k => `<li><b>${esc(k.name)}</b><span>${esc(k.use)}</span></li>`).join("")}</ul>
+        ${known.length > 3 ? `<button class="linkish small" data-act="mp-all">${ui.mpAll ? "Show less" : `Show all ${known.length}`}</button>` : ""}` : ""}
+      <p class="small muted" style="margin-top:12px">Your study sessions already include these ideas.</p>`;
+  }
+
+  /* ======================================================================
+     UPLOADS
+     ====================================================================== */
   async function handleFiles(classId, files) {
     const c = st().classes[classId];
     const name = S.className(classId);
-    let found = [];
-    let unreadable = 0;
+    let found = [], unreadable = 0;
     for (const file of files) {
       toast(`Reading ${file.name}...`);
       const record = { name: file.name, link: "" };
@@ -388,15 +823,14 @@
       c.guides.push(record);
       try {
         const text = await window.StudyGuide.extract(file);
-        if (text == null) unreadable++;
-        else found = found.concat(window.StudyGuide.topicsFromText(text));
+        if (text == null) unreadable++; else found = found.concat(window.StudyGuide.topicsFromText(text));
       } catch (err) { unreadable++; }
     }
     save({ planInputs: true });
     render();
     if (found.length) reviewTopics(classId, found);
-    else if (unreadable) toast(`Saved. Exam Prep HQ can't read that file type, so type the topics on the right.`);
-    else toast("Couldn't spot topics in that file. Type them in or paste the text.");
+    else if (unreadable) toast("Saved. We can't read photos, so type the topics in.");
+    else toast("We couldn't find topics in that file. Type them in instead.");
   }
 
   function reviewTopics(classId, list) {
@@ -404,16 +838,13 @@
     const fresh = Array.from(new Set(list)).filter(t => !existing.has(t.toLowerCase()));
     if (!fresh.length) { toast("Those topics are already on your list."); return; }
     openModal(`
-      <form method="dialog" data-review="${classId}">
+      <form method="dialog">
         <div class="modal-body">
-          <h3>We found ${fresh.length} possible topics</h3>
-          <p class="muted">Keep the ones that are really on your ${esc(S.className(classId))} study guide. You can rename them after.</p>
+          <h3>We found ${fresh.length} topics</h3>
+          <p class="muted">Uncheck any that aren't really topics.</p>
           <ul class="pick-list">${fresh.map((t, i) => `<li><label><input type="checkbox" name="t" value="${i}" checked> ${esc(t)}</label></li>`).join("")}</ul>
         </div>
-        <div class="modal-foot">
-          <button class="btn ghost" type="button" data-act="modal-close">Cancel</button>
-          <button class="btn" type="submit">Add checked topics</button>
-        </div>
+        <div class="modal-foot"><button class="btn ghost" type="button" data-act="modal-close">Cancel</button><button class="btn" type="submit">Add them</button></div>
       </form>`);
     $("#modal form").addEventListener("submit", ev => {
       ev.preventDefault();
@@ -423,7 +854,7 @@
       closeModal();
       save({ planInputs: true });
       render();
-      toast(`Added ${picks.length} topic${picks.length === 1 ? "" : "s"}. Now rate how you feel about each one.`);
+      toast(`Added ${picks.length}. Now tap a face for each one.`);
     });
   }
 
@@ -431,616 +862,110 @@
     openModal(`
       <form method="dialog">
         <div class="modal-body">
-          <h3>Paste your ${esc(S.className(classId))} study guide</h3>
-          <p class="muted">Copy the text from your study guide (from Google Docs, Canvas, or a PDF) and paste it here.</p>
+          <h3>Paste your study guide</h3>
           <label for="paste-box" class="sr-only">Study guide text</label>
-          <textarea id="paste-box" style="min-height:220px"></textarea>
+          <textarea id="paste-box" style="min-height:220px" placeholder="Paste the text here"></textarea>
         </div>
-        <div class="modal-foot">
-          <button class="btn ghost" type="button" data-act="modal-close">Cancel</button>
-          <button class="btn" type="submit">Find topics</button>
-        </div>
+        <div class="modal-foot"><button class="btn ghost" type="button" data-act="modal-close">Cancel</button><button class="btn" type="submit">Find topics</button></div>
       </form>`);
     $("#modal form").addEventListener("submit", ev => {
       ev.preventDefault();
       const list = window.StudyGuide.topicsFromText($("#paste-box").value);
       closeModal();
-      if (list.length) reviewTopics(classId, list);
-      else toast("Couldn't spot topics. Try adding them one at a time.");
+      if (list.length) reviewTopics(classId, list); else toast("We couldn't find topics. Try adding them one at a time.");
     });
   }
 
-  /* ======================================================================
-     MY CALENDAR
-     ====================================================================== */
-  const PRESETS = [
-    ["⚽", "Practice"], ["🏀", "Game"], ["🎭", "Rehearsal"], ["🎵", "Music lesson"], ["📖", "Tutoring"],
-    ["🙏", "Religious service"], ["🍽️", "Family dinner"], ["🚗", "Travel"], ["🩺", "Appointment"], ["🎉", "Event"]
-  ];
-
-  function pageCalendar() {
-    const s = st();
-    const p = s.prefs;
-    const busyList = s.busy.length ? `<ul class="busy-list">${s.busy.map(b => `
-      <li class="busy-item">
-        <span class="grow"><b>${esc(b.label || "Busy")}</b><br><span class="when">${b.type === "weekly"
-          ? `Every ${(b.days || []).map(d => D.daysShort[d]).join(", ") || "(no days picked)"}`
-          : D.pretty(b.date)}, ${D.clock(b.start)} to ${D.clock(b.end)}</span></span>
-        <button class="icon-btn" data-act="busy-del" data-id="${b.id}" aria-label="Remove ${esc(b.label)}">🗑️</button>
-      </li>`).join("")}</ul>` : `<p class="small muted">Nothing added yet.</p>`;
-
-    const seg = (path, opts, cur) => `<div class="seg">${opts.map(([v, l]) => `<button type="button" data-act="set" data-path="${path}" data-num="1" data-plan="1" data-v="${v}" aria-pressed="${String(cur) === String(v)}">${l}</button>`).join("")}</div>`;
-
-    return `
-      <div class="page-head">
-        <h1>My calendar</h1>
-        <p>Add what's already on your schedule, then tell Exam Prep HQ when you like to study. Your plan only uses the open time.</p>
-      </div>
-      <div class="grid two">
-        <section class="panel" aria-labelledby="busy-h">
-          <div class="panel-title"><h3 id="busy-h">Already on my calendar</h3></div>
-          <p class="small muted">Quick add:</p>
-          <div class="chips" style="margin-bottom:14px">${PRESETS.map(([e, l]) => `<button class="chip" type="button" data-act="preset" data-label="${l}">${e} ${l}</button>`).join("")}</div>
-          <form data-busyform>
-            <div class="field"><label for="b-label">What is it?</label><input id="b-label" type="text" value="${esc(ui.busyLabel)}" placeholder="Soccer practice" required></div>
-            <div class="field"><label>How often?</label>
-              <div class="seg">
-                <button type="button" data-act="busy-type" data-v="weekly" aria-pressed="${ui.busyType === "weekly"}">Every week</button>
-                <button type="button" data-act="busy-type" data-v="once" aria-pressed="${ui.busyType === "once"}">Just once</button>
-              </div>
-            </div>
-            ${ui.busyType === "weekly"
-              ? `<fieldset class="field" style="border:0;padding:0;margin:0 0 14px"><legend class="small" style="font-weight:600;margin-bottom:4px">Which days?</legend><div class="daypick">${D.daysShort.map((d, i) => `<label><input type="checkbox" name="day" value="${i}"><span>${d}</span></label>`).join("")}</div></fieldset>`
-              : `<div class="field"><label for="b-date">Date</label><input id="b-date" type="date" required min="${D.today()}"></div>`}
-            <div class="fields">
-              <div class="field"><label for="b-start">Starts</label><input id="b-start" type="time" value="16:00" required></div>
-              <div class="field"><label for="b-end">Ends (include travel)</label><input id="b-end" type="time" value="17:30" required></div>
-            </div>
-            <button class="btn" type="submit">Add to my calendar</button>
-          </form>
-          <h4 style="margin-top:22px">My list</h4>
-          ${busyList}
-        </section>
-
-        <section class="panel" aria-labelledby="study-h">
-          <div class="panel-title"><h3 id="study-h">When I can study</h3></div>
-          <div class="fields">
-            <div class="field"><label for="wd-s">School days from</label><input id="wd-s" type="time" data-bind="prefs.weekdayStart" data-plan="1" value="${p.weekdayStart}"></div>
-            <div class="field"><label for="wd-e">until</label><input id="wd-e" type="time" data-bind="prefs.weekdayEnd" data-plan="1" value="${p.weekdayEnd}"></div>
-          </div>
-          <div class="fields">
-            <div class="field"><label for="we-s">Weekends from</label><input id="we-s" type="time" data-bind="prefs.weekendStart" data-plan="1" value="${p.weekendStart}"></div>
-            <div class="field"><label for="we-e">until</label><input id="we-e" type="time" data-bind="prefs.weekendEnd" data-plan="1" value="${p.weekendEnd}"></div>
-          </div>
-          <div class="field"><label>Study session length</label>${seg("prefs.sessionLen", [[20, "20 min"], [25, "25 min"], [30, "30 min"], [45, "45 min"]], p.sessionLen)}
-            <p class="xs muted" style="margin:6px 0 0">Each session is followed by a 10-minute break.</p></div>
-          <div class="field"><label>Most sessions on a school day</label>${seg("prefs.maxWeekday", [[1, "1"], [2, "2"], [3, "3"], [4, "4"]], p.maxWeekday)}</div>
-          <div class="field"><label>Most sessions on a weekend day</label>${seg("prefs.maxWeekend", [[1, "1"], [2, "2"], [3, "3"], [4, "4"], [5, "5"]], p.maxWeekend)}</div>
-          <div class="field"><label>Keep one day a week totally free</label>${seg("prefs.freeDay", [[-1, "No"], [5, "Friday"], [6, "Saturday"], [0, "Sunday"]], p.freeDay)}
-            <p class="xs muted" style="margin:6px 0 0">Rest helps memory. If an exam is the next day, you'll still get a short review.</p></div>
-          <div class="field"><label for="start">Start my plan on</label><input id="start" type="date" data-bind="prefs.startDate" data-plan="1" value="${p.startDate}"></div>
-
-          <h4 style="margin-top:20px">Days off (no studying)</h4>
-          <p class="small muted">Holidays, trips, or days you know will be packed.</p>
-          <form class="btn-row" data-offform>
-            <label class="sr-only" for="off-date">Day off</label>
-            <input id="off-date" type="date" style="max-width:200px" required>
-            <button class="btn small" type="submit">Add day off</button>
-          </form>
-          <div class="chips" style="margin-top:10px">${(p.offDates || []).sort().map(d => `<button class="chip" data-act="off-del" data-d="${d}" aria-label="Remove ${D.pretty(d)}">${D.pretty(d)} ✕</button>`).join("")}</div>
-        </section>
-      </div>
-      <div class="btn-row" style="margin-top:24px">
-        <a class="btn big" href="#plan" data-act="cal-done">Next: build my plan</a>
-      </div>`;
-  }
-
-  /* ======================================================================
-     MY PLAN
-     ====================================================================== */
-  function sessionCard(x) {
-    const late = !x.done && x.date < D.today();
-    return `<div class="session ${x.done ? "done" : ""}" style="${classColorVars(x.classId)}">
-      <button class="check" data-act="toggle-session" data-id="${x.id}" aria-pressed="${!!x.done}" aria-label="Mark ${esc(x.title)} done">${x.done ? "✓" : ""}</button>
-      <div>
-        <div class="time">${D.short(x.date)}, ${D.clock(x.start)} to ${D.clock(x.end)}</div>
-        <div class="s-title">${esc(x.title)}</div>
-        <div class="s-topic">${esc(x.topicText)}</div>
-        <p class="s-tip">${esc(x.tip)}</p>
-        ${late ? `<p class="xs" style="margin:4px 0 0;color:var(--red)">Missed this one? That's OK. Rebuild your plan and it moves to a new time.</p>` : ""}
-      </div>
-    </div>`;
-  }
-
-  function calendarStale() {
-    const s = st();
-    const synced = s.drive.calendarSyncedAt || 0;
-    if (!synced || !s.plan) return false;
-    return synced < Math.max(s.plan.generatedAt || 0, s.tutorialsUpdatedAt || 0);
-  }
-
-  function pagePlan() {
-    const s = st();
-    if (!s.plan) {
-      const g = gradesEntered(s);
-      const t = Object.values(s.classes).reduce((n, c) => n + c.topics.length, 0);
-      return `
-        <div class="page-head"><h1>My plan</h1><p>Exam Prep HQ builds study sessions for every part of every study guide, spaced out so you remember more.</p></div>
-        <section class="panel">
-          <h3>Ready to build?</h3>
-          <ul>
-            <li>${g} of 5 grades added ${g < 5 ? `(<a href="#classes">add more</a>)` : "✓"}</li>
-            <li>${t} study guide topics ${t ? "✓" : `(<a href="#classes">add some</a>, or we'll use general review topics)`}</li>
-            <li>${s.busy.length} things on your calendar ${s.busy.length ? "✓" : `(<a href="#calendar">add them</a>)`}</li>
-            <li>${S.mpIsSet() ? "MindPrint added ✓" : `MindPrint not added (<a href="#mindprint">optional</a>)`}</li>
-          </ul>
-          <button class="btn big" data-act="build">Build my plan</button>
-        </section>`;
-    }
-
-    const plan = s.plan;
-    const today = D.today();
-    const filtered = plan.sessions.filter(x => ui.planFilter === "all" || x.classId === ui.planFilter || (ui.planFilter !== "all" && x.classId === "general"));
-    const dates = new Set(filtered.map(x => x.date));
-    CFG.EXAMS.forEach(e => { if (ui.planFilter === "all" || ui.planFilter === e.id) dates.add(e.date); });
-    const tuts = (s.tutorials || []).filter(t => ui.planFilter === "all" || ui.planFilter === t.classId);
-    tuts.forEach(t => dates.add(t.date));
-    const sorted = Array.from(dates).sort();
-
-    const weeks = {};
-    sorted.forEach(d => { const w = D.addDays(d, -D.dow(d)); (weeks[w] = weeks[w] || []).push(d); });
-
-    const weeksHTML = Object.keys(weeks).sort().map(w => {
-      const label = D.addDays(w, 6) < today ? `Week of ${D.pretty(w, false)} (past)` : w <= today && today <= D.addDays(w, 6) ? "This week" : `Week of ${D.pretty(w, false)}`;
-      const days = weeks[w].map(d => {
-        const exams = CFG.EXAMS.filter(e => e.date === d && (ui.planFilter === "all" || ui.planFilter === e.id));
-        const busy = s.busy.filter(b => (b.type === "weekly" && (b.days || []).includes(D.dow(d))) || (b.type === "once" && b.date === d));
-        const ses = filtered.filter(x => x.date === d);
-        return `<div class="day ${d === today ? "today" : ""}">
-          <div class="day-label"><b>${D.days[D.dow(d)]}</b><span>${D.pretty(d, false)}${d === today ? ", today" : ""}</span></div>
-          <div class="sessions">
-            ${exams.map(e => `<div class="exam-pill" style="${classColorVars(e.id)}"><span aria-hidden="true">⭐</span>${esc(S.className(e.id))} exam, ${S.examMinutes()} minutes. You've prepared for this.</div>`).join("")}
-            ${tuts.filter(t => t.date === d).sort((a, b) => a.start.localeCompare(b.start)).map(t => `<div class="tut-pill" style="${classColorVars(t.classId)}"><span aria-hidden="true">🙋</span><span><b>${esc(S.className(t.classId))} tutorial, ${D.clock(t.start)}</b>${hitList(t.classId).length ? `<br><span class="small">Bring: ${esc(hitList(t.classId).slice(0, 3).join("; "))}</span>` : ""}</span></div>`).join("")}
-            ${ses.length ? busy.map(b => `<div class="busy-pill">${D.clock(b.start)}: ${esc(b.label)}</div>`).join("") : ""}
-            ${ses.map(sessionCard).join("")}
-          </div>
-        </div>`;
-      }).join("");
-      return `<section class="week"><h3>${label}</h3>${days}</section>`;
-    }).join("");
-
-    const signedIn = !!window.Drive.user;
-    const free = plan.freeSlots || 0;
-
-    return `
-      <div class="page-head"><h1>My plan</h1><p>Each session links to a part of your study guide. Check it off when you're done.</p></div>
-
-      <div class="plan-bar no-print">
-        <div class="btn-row">
-          <button class="btn" data-act="build">Rebuild my plan</button>
-          <span class="small muted">${plan.sessions.length} sessions, ${doneCount(s)} done. ${free ? `${free} open slots left free for downtime.` : ""}</span>
-        </div>
-        <div class="filter" role="group" aria-label="Show classes">
-          <button data-act="filter" data-v="all" aria-pressed="${ui.planFilter === "all"}">All</button>
-          ${CFG.EXAMS.map(e => `<button data-act="filter" data-v="${e.id}" style="${classColorVars(e.id)}" aria-pressed="${ui.planFilter === e.id}">${esc(e.id === "lang" ? S.className("lang") : e.short)}</button>`).join("")}
-        </div>
-      </div>
-
-      ${s.planStale ? `<div class="warn">You changed some of your info since this plan was built. <button class="linkish" data-act="build">Rebuild it</button> to catch up. Finished sessions stay checked off.</div>` : ""}
-      ${plan.warnings.map(w => `<div class="warn">${esc(w)}</div>`).join("")}
-      ${calendarStale() ? `<div class="warn">Your Google Calendar shows an older version of your plan. <button class="linkish" data-act="exp-gcal">Update Google Calendar</button></div>` : ""}
-
-      <section class="panel no-print" aria-labelledby="dl-h" style="margin:16px 0">
-        <div class="panel-title"><h3 id="dl-h">Download or save my schedule</h3></div>
-        <div class="downloads">
-          <button class="dl featured" data-act="exp-gcal" ${window.Drive.enabled() ? "" : "disabled"}><span class="e" aria-hidden="true">🔔</span><b>${s.drive.calendarSyncedAt ? "Update Google Calendar" : "Add to Google Calendar"}</b><span>${window.Drive.enabled()
-            ? "Every session, tutorial, and exam goes into its own Exam Prep HQ calendar, with reminders."
-            : "Not turned on for this site yet. Use the calendar file instead."}</span></button>
-          <button class="dl" data-act="exp-print"><span class="e" aria-hidden="true">🖨️</span><b>Print or save as PDF</b><span>A printable checklist by day.</span></button>
-          <button class="dl" data-act="exp-gdoc" ${signedIn ? "" : "disabled"}><span class="e" aria-hidden="true">📝</span><b>Google Doc</b><span>${signedIn ? "Editable, saved in your Drive folder." : "Sign in with Google to use this."}</span></button>
-          <button class="dl" data-act="exp-gsheet" ${signedIn ? "" : "disabled"}><span class="e" aria-hidden="true">📊</span><b>Google Sheet</b><span>${signedIn ? "Sort and edit in a spreadsheet." : "Sign in with Google to use this."}</span></button>
-          <button class="dl" data-act="exp-ics"><span class="e" aria-hidden="true">📅</span><b>Calendar file (.ics)</b><span>For Apple Calendar or Outlook, with reminders.</span></button>
-          <button class="dl" data-act="exp-word"><span class="e" aria-hidden="true">📄</span><b>Word document</b><span>Editable in Word or Pages.</span></button>
-          <button class="dl" data-act="exp-csv"><span class="e" aria-hidden="true">🧮</span><b>Spreadsheet (CSV)</b><span>Opens in Excel or Numbers.</span></button>
-        </div>
-      </section>
-
-      ${weeksHTML}
-
-      <p class="small muted no-print" style="margin-top:30px">Want to start completely over? <button class="linkish" data-act="reset">Erase all my Exam Prep HQ info</button></p>`;
-  }
-
-  function buildPlan() {
-    const s = st();
-    s.plan = window.Planner.generate(s);
-    s.planStale = false;
-    save();
-    render();
-    toast(s.plan.warnings.length ? "Plan built, with a few notes to check."
-      : s.drive.calendarSyncedAt ? "Plan rebuilt. Update Google Calendar to match." : "Your plan is ready.");
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  }
-
-  /* ======================================================================
-     TUTORIALS
-     ====================================================================== */
-  const QUESTION_EXAMPLES = {
-    english: "Like: How do I pick strong evidence for a theme paragraph?",
-    science: "Like: What's the difference between mitosis and meiosis?",
-    social: "Like: How do I explain the causes of an event in a short answer?",
-    math: "Like: When do I flip the inequality sign?",
-    lang: "Like: When do I use one verb tense instead of another?"
-  };
-
-  function pageTutorials() {
-    const s = st();
-    const T = C.tutorials;
-    const today = D.today();
-    const list = (s.tutorials || []).slice().sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start));
-    const lastExam = CFG.EXAMS.map(e => e.date).sort().slice(-1)[0];
-
-    const planned = list.length ? `<ul class="busy-list">${list.map(t => `
-      <li class="busy-item tut-item ${t.done ? "done" : ""}" style="${classColorVars(t.classId)}">
-        <button class="check" data-act="tut-done" data-id="${t.id}" aria-pressed="${!!t.done}" aria-label="Mark ${esc(S.className(t.classId))} tutorial done">${t.done ? "✓" : ""}</button>
-        <span class="grow"><b>${esc(S.className(t.classId))}</b><br><span class="when">${D.pretty(t.date)}, ${D.clock(t.start)} to ${D.clock(t.end)}${t.date < today && !t.done ? " (did you go?)" : ""}</span></span>
-        <button class="icon-btn" data-act="tut-del" data-id="${t.id}" aria-label="Remove ${esc(S.className(t.classId))} tutorial">🗑️</button>
-      </li>`).join("")}</ul>` : `<p class="small muted">No tutorials planned yet. Aim for at least one for each class you rated lowest.</p>`;
-
-    const hit = CFG.EXAMS.map(e => {
-      const c = s.classes[e.id];
-      const topics = hitList(e.id);
-      return `<section class="class-card hit-card" style="${classColorVars(e.id)}">
-        <div class="class-head"><span class="icon" aria-hidden="true">${e.icon}</span><div><h3>${esc(S.className(e.id))}</h3><span class="date">Exam: ${D.pretty(e.date)}</span></div></div>
-        <div style="padding:16px 20px">
-          <h4 class="small">Shakiest topics</h4>
-          ${topics.length ? `<ul class="hit-topics">${topics.slice(0, 4).map(t => `<li>${esc(t)}</li>`).join("")}</ul>`
-            : `<p class="small muted">${c.topics.length ? "Nice: nothing rated shaky right now." : `Add and rate topics on <a href="#classes">My classes</a>.`}</p>`}
-          <label for="q-${e.id}" style="margin-top:10px">My questions to ask</label>
-          <textarea id="q-${e.id}" data-bind="classes.${e.id}.questions" placeholder="${esc(QUESTION_EXAMPLES[e.id] || "Like: Can you show me how to start number 4?")}">${esc(c.questions)}</textarea>
-        </div>
-      </section>`;
-    }).join("");
-
-    return `
-      <div class="page-head"><h1>Tutorials</h1><p>${esc(T.intro)}</p></div>
-
-      <div class="phases">${T.phases.map(ph => `
-        <section class="panel phase">
-          <div class="panel-title"><span class="phase-emoji" aria-hidden="true">${ph.emoji}</span><h3>${esc(ph.title)}</h3></div>
-          <ul>${ph.items.map(i => `<li>${esc(i)}</li>`).join("")}</ul>
-        </section>`).join("")}</div>
-
-      <div class="grid two" style="margin-top:20px">
-        <section class="panel" aria-labelledby="tut-plan-h">
-          <div class="panel-title"><h3 id="tut-plan-h">Plan a tutorial</h3></div>
-          <p class="small muted">Add tutorials you're going to. They show up on your plan and in your calendar, and Exam Prep HQ won't schedule study sessions at the same time.</p>
-          <form data-tutform>
-            <div class="field"><label for="t-class">Class</label>
-              <select id="t-class">${CFG.EXAMS.map(e => `<option value="${e.id}">${esc(S.className(e.id))}</option>`).join("")}</select></div>
-            <div class="fields">
-              <div class="field"><label for="t-date">Date</label><input id="t-date" type="date" min="${today}" max="${lastExam}" required></div>
-              <div class="field"><label for="t-start">Starts</label><input id="t-start" type="time" value="08:00" required></div>
-              <div class="field"><label for="t-end">Ends</label><input id="t-end" type="time" value="08:30" required></div>
-            </div>
-            <button class="btn" type="submit">Add tutorial</button>
-          </form>
-          <h4 style="margin-top:20px">My tutorials</h4>
-          ${planned}
-        </section>
-
-        <section class="panel" aria-labelledby="starters-h">
-          <div class="panel-title"><h3 id="starters-h">Questions that get great answers</h3></div>
-          <ul class="starters">${T.starters.map(q => `<li>"${esc(q)}"</li>`).join("")}</ul>
-          <h4 style="margin-top:18px">Swap this for that</h4>
-          ${T.avoid.map(a => `<div class="swap"><span class="swap-no">${esc(a.title)}</span><span class="swap-yes">${esc(a.fix)}</span></div>`).join("")}
-        </section>
-      </div>
-
-      <h2 style="margin-top:30px">My hit list</h2>
-      <p class="muted">Your lowest-rated topics for each class. Write your questions here, then bring this page (or your printed plan) to tutorials.</p>
-      <div class="grid hit-grid">${hit}</div>`;
-  }
-
-  /* ======================================================================
-     MINDPRINT
-     ====================================================================== */
-  function pageMindprint() {
-    const s = st();
-    const MP = C.mindprint;
-    const m = s.mindprint;
-    const isSet = S.mpIsSet();
-
-    const boxes = MP.domains.map(d => {
-      const set = !!m.order[d.id];
-      const order = m.order[d.id] || d.skills;
-      const strongest = m.strongest === d.id;
-      return `
-        <section class="mp-box ${strongest ? "strongest" : ""} ${set ? "" : "unset"}" aria-labelledby="mpb-${d.id}">
-          <div class="mp-box-head">
-            <h4 id="mpb-${d.id}">${esc(d.name)}</h4>
-            <span class="xs">${esc(d.sub)}</span>
-          </div>
-          <ol class="mp-rank">${order.map((id, i) => `
-            <li class="${i === 0 && set ? "first" : ""}">
-              <span class="mp-name"><span aria-hidden="true">${MP.skills[id].icon}</span> ${esc(MP.skills[id].name)}</span>
-              <span class="mp-move">
-                <button class="icon-btn" data-act="mp-move" data-cat="${d.id}" data-skill="${id}" data-dir="-1" ${i === 0 ? "disabled" : ""} aria-label="Move ${esc(MP.skills[id].name)} up">▲</button>
-                <button class="icon-btn" data-act="mp-move" data-cat="${d.id}" data-skill="${id}" data-dir="1" ${i === order.length - 1 ? "disabled" : ""} aria-label="Move ${esc(MP.skills[id].name)} down">▼</button>
-              </span>
-            </li>`).join("")}</ol>
-          ${set ? "" : `<button class="btn small" data-act="mp-confirm" data-cat="${d.id}">This matches my report</button>`}
-          <label class="mp-top-label" for="mpt-${d.id}">Top Strategy <span class="xs muted">(optional)</span></label>
-          <input id="mpt-${d.id}" type="text" data-bind="mindprint.top.${d.id}" data-rerender="1" value="${esc(m.top[d.id] || "")}" placeholder="Copy it from your report">
-          <button class="mp-star" data-act="mp-strongest" data-cat="${d.id}" aria-pressed="${strongest}">${strongest ? "★ My strongest category" : "☆ This box is highlighted on my report"}</button>
-        </section>`;
-    }).join("");
-
-    return `
-      <div class="page-head"><h1>MindPrint match</h1><p>Your MindPrint profile shows how your brain learns best. Add it here and Exam Prep HQ builds your study sessions around your stronger skills.</p></div>
-
-      <section class="panel">
-        <h3>Add your MindPrint profile</h3>
-        <p class="small muted">Don't have your report? Ask your advisor or learning specialist.</p>
-        <div class="mp-ways">
-          <div class="mp-way">
-            <h4>Option 1: Upload your report</h4>
-            <label class="drop" data-mpdrop>
-              <input type="file" accept=".pdf,.docx,.txt,image/*" data-mpupload>
-              📤 Upload your MindPrint Student Profile<br><span class="xs muted">The PDF works best. Exam Prep HQ reads it and you check that it's right.</span>
-            </label>
-            ${s.mindprintReport ? `<p class="small" style="margin:8px 0 0">📄 ${s.mindprintReport.link ? `<a href="${esc(s.mindprintReport.link)}" target="_blank" rel="noopener">${esc(s.mindprintReport.name)}</a>` : esc(s.mindprintReport.name)}
-              <button class="icon-btn" data-act="mp-report-del" aria-label="Remove report from this list">✕</button></p>` : ""}
-          </div>
-          <div class="mp-way">
-            <h4>Option 2: Enter it yourself</h4>
-            <p class="small" style="margin:0">Open your report to the "My Profile" boxes. Use ▲ and ▼ below so each box lists your skills in the same order, strongest first. Then mark the box that's highlighted on your report.</p>
-          </div>
-        </div>
-        <p class="xs muted" style="margin:10px 0 0">Your report stays private. It's read on this device${window.Drive.user ? " and saved only in the MindPrint folder in your own Google Drive" : ""}. It's never sent anywhere else.</p>
-      </section>
-
-      <h2 style="margin-top:28px">My Profile</h2>
-      <p class="muted">Strongest skill first in each box. The last skill could sometimes be a "blocker," and that's OK: you can use your stronger skills to work around it.</p>
-      <div class="mp-boxes">${boxes}</div>
-      ${isSet ? `<p style="margin-top:10px"><button class="linkish small" data-act="mp-clear">Clear my MindPrint profile</button></p>` : ""}
-
-      <section class="panel playbook" style="margin-top:24px" aria-labelledby="pb-h">
-        <div class="panel-title"><h3 id="pb-h">My study playbook</h3></div>
-        ${isSet ? playbookHTML() : `<p class="muted">Upload your report or put the skills in order above, and your personal playbook appears here.</p>`}
-      </section>`;
-  }
-
-  function playbookHTML() {
-    const s = st();
-    const MP = C.mindprint;
-    const m = s.mindprint;
-    const doms = MP.domains.filter(d => m.order[d.id]);
-    const strongestDom = MP.domains.find(d => d.id === m.strongest);
-    const superSkill = strongestDom && m.order[strongestDom.id] ? MP.skills[m.order[strongestDom.id][0]] : null;
-
-    const lean = doms.map(d => {
-      const sk = MP.skills[m.order[d.id][0]];
-      return `<div class="pb-item"><h4><span class="tag strength">Start here</span> ${esc(sk.name)}</h4><ul>${sk.strength.map(t => `<li>${esc(t)}</li>`).join("")}</ul></div>`;
-    }).join("");
-    const watch = doms.map(d => {
-      const list = m.order[d.id];
-      const sk = MP.skills[list[list.length - 1]];
-      return `<div class="pb-item"><h4><span class="tag support">Work around</span> ${esc(sk.name)}</h4><ul>${sk.support.map(t => `<li>${esc(t)}</li>`).join("")}</ul></div>`;
-    }).join("");
-
-    const tops = MP.domains.filter(d => m.top[d.id]).map(d => `<li><b>${esc(m.top[d.id])}</b> <span class="xs muted">(${esc(d.name)})</span></li>`).join("");
-
-    const known = (m.strategies || []).map(name => {
-      const def = MP.strategies.find(x => x.name.toLowerCase() === name.toLowerCase());
-      if (def) return { name, when: def.when, use: def.use };
-      const sk = Object.values(MP.skills).find(k => name.toLowerCase().includes(k.name.toLowerCase()));
-      return sk ? { name, when: "study", use: sk.strength[0] } : null;
-    }).filter(Boolean);
-    const group = (when, title) => {
-      const items = known.filter(k => k.when === when);
-      return items.length ? `<div><h4>${title}</h4><ul class="strat-list">${items.map(k => `<li><b>${esc(k.name)}</b><span>${esc(k.use)}</span></li>`).join("")}</ul></div>` : "";
-    };
-
-    return `
-      ${superSkill ? `<div class="superpower"><span class="sp-emoji" aria-hidden="true">${superSkill.icon}</span><div><b>Your superpower: ${esc(superSkill.name)}</b><span class="small">Your strongest skill in your strongest category. When you're stuck, start here.</span></div></div>` : `<p class="small muted">Tip: mark the highlighted box from your report to see your superpower.</p>`}
-      <div class="pb-cols">
-        <div><h3 class="pb-sub">Lean on your stronger skills</h3>${lean}</div>
-        <div><h3 class="pb-sub">Work around possible blockers</h3>${watch}</div>
-      </div>
-      ${tops ? `<h3 class="pb-sub">Your top MindPrint strategies</h3><ul>${tops}</ul>` : ""}
-      ${known.length ? `<h3 class="pb-sub">Your MindPrint strategies, for exam prep</h3>
-        <p class="small muted">From the recommendations on your report. Find the full versions in your MindPrint Toolbox.</p>
-        <div class="pb-cols">${group("study", "While you study")}<div>${group("test", "On exam day")}${group("plan", "Planning")}</div></div>` : ""}
-      <p class="small muted" style="margin-top:12px">Your study sessions use these too. ${s.plan ? `<button class="linkish" data-act="build">Rebuild my plan</button> to add them.` : ""}</p>`;
-  }
-
-  /* ======================================================================
-     STRATEGY LAB
-     ====================================================================== */
-  function pageLab() {
-    const tabs = C.lab.map(t => `<button data-act="lab-tab" data-v="${t.id}" aria-pressed="${ui.labTab === t.id}">${t.emoji} ${t.title}</button>`).join("")
-      + `<button data-act="lab-tab" data-v="myths" aria-pressed="${ui.labTab === "myths"}">🤔 Myth or fact?</button>`;
-
-    let body;
-    if (ui.labTab === "myths") {
-      body = `
-        <div class="lab-intro"><div class="big-emoji" aria-hidden="true">🤔</div><div><h2 style="margin:0 0 4px">Myth or fact?</h2><p class="muted" style="margin:0">Guess, then tap a card to flip it.</p></div></div>
-        <div class="myths">${C.myths.map((m, i) => `
-          <button class="flip" data-act="flip" data-i="${i}" aria-pressed="${!!ui.flipped[i]}" aria-label="${esc(m.claim)} ${ui.flipped[i] ? `${m.answer}. ${esc(m.why)}` : "Tap to reveal."}">
-            <span class="flip-inner">
-              <span class="face front"><span style="font-weight:700;font-size:1.05rem">${esc(m.claim)}</span><small>Tap to flip</small></span>
-              <span class="face back"><span class="verdict ${m.answer.toLowerCase()}">${m.answer}</span><span class="small">${esc(m.why)}</span></span>
-            </span>
-          </button>`).join("")}</div>`;
-    } else {
-      const t = C.lab.find(x => x.id === ui.labTab) || C.lab[0];
-      const cards = t.checklist
-        ? `<section class="panel"><ul class="checklist">${t.checklist.map((c, i) => `<li><label><input type="checkbox" data-examcheck="${i}" ${ui.examChecks[i] ? "checked" : ""}> ${esc(c)}</label></li>`).join("")}</ul></section>`
-        : t.cards.map((c, i) => `
-          <details class="strat" ${i === 0 ? "open" : ""}>
-            <summary>${esc(c.title)}</summary>
-            <div class="body"><p>${esc(c.body)}</p><div class="try"><b>Try it:</b> ${esc(c.try)}</div></div>
-          </details>`).join("");
-      body = `
-        <div class="lab-intro"><div class="big-emoji" aria-hidden="true">${t.emoji}</div><div><h2 style="margin:0 0 4px">${t.title}</h2><p class="muted" style="margin:0">${esc(t.blurb)}</p></div></div>
-        ${cards}
-        ${t.id === "testday" ? `<p class="small" style="margin-top:14px">Have extended time? <a href="#time">See how to pace it</a>.</p>` : ""}`;
-    }
-
-    return `
-      <div class="page-head"><h1>Strategy lab</h1><p>Short, science-backed ways to study, take tests, and stay balanced.</p></div>
-      <div class="lab-nav" role="group" aria-label="Topics">${tabs}</div>
-      ${body}`;
-  }
-
-  /* ======================================================================
-     EXTENDED TIME
-     ====================================================================== */
-  function pageTime() {
-    const s = st();
-    const a = s.accom;
-    const base = CFG.EXAM_MINUTES;
-    const total = S.examMinutes();
-    const preview = Math.round(total * 0.07);
-    const check = Math.round(total * 0.15);
-    const answer = total - preview - check;
-    const half = preview + Math.round(answer / 2);
-    const E = C.extended;
-    const opts = [["none", "No"], ["1.5", "Time and a half"], ["2", "Double time"], ["custom", "Something else"]];
-
-    return `
-      <div class="page-head"><h1>Extended time</h1><p>If you have extended time, it's yours to use. Here's why it matters and how to make every minute count.</p></div>
-
-      <div class="grid two">
-        <section class="panel">
-          <h3>My exam time</h3>
-          <div class="field"><label>Do you have extended time on exams?</label>
-            <div class="seg">${opts.map(([v, l]) => `<button type="button" data-act="set" data-path="accom.extended" data-plan="1" data-v="${v}" aria-pressed="${a.extended === v}">${l}</button>`).join("")}</div>
-          </div>
-          ${a.extended === "custom" ? `<div class="field"><label for="cm">Total minutes per exam</label><input id="cm" type="number" min="${base}" max="300" data-bind="accom.customMinutes" data-plan="1" data-rerender="1" value="${esc(a.customMinutes)}" style="max-width:160px"></div>` : ""}
-          <p class="muted small">Not sure? Ask your advisor or learning specialist. This stays in your own plan.</p>
-          <div class="bignum">${total} min</div>
-          <p>${total > base ? `That's ${total - base} more minutes than the standard ${base}.` : `The standard exam time is ${base} minutes.`}</p>
-        </section>
-
-        <section class="panel">
-          <h3>A pacing plan for ${total} minutes</h3>
-          <div class="pace" role="img" aria-label="Preview ${preview} minutes, answer ${answer} minutes, check ${check} minutes">
-            <div class="p1" style="flex:${preview}">${preview}m</div>
-            <div class="p2" style="flex:${answer}">Answer: ${answer} min</div>
-            <div class="p3" style="flex:${check}">Check ${check}m</div>
-          </div>
-          <div class="pace-label"><span>Start</span><span>Minute ${half}: about halfway</span><span>Minute ${total}</span></div>
-          <ol style="margin-top:14px">
-            <li><b>Preview (${preview} min):</b> flip through the exam, find the big-point sections, and jot down anything you're afraid you'll forget.</li>
-            <li><b>Answer (${answer} min):</b> do what you know first, circle hard questions, and come back. Around minute ${half}, check that you're about halfway.</li>
-            <li><b>Check (${check} min):</b> answer every circled question, reread written answers, and recheck math.</li>
-          </ol>
-          ${s.plan && total > base ? `<p class="small muted">Your practice exam sessions remind you to practice with all ${total} minutes.</p>` : ""}
-        </section>
-      </div>
-
-      <h2 style="margin-top:30px">Why extended time matters</h2>
-      <div class="grid two">${E.why.map(w => `<section class="panel"><h3>${esc(w.title)}</h3><p style="margin:0">${esc(w.body)}</p></section>`).join("")}</div>
-
-      <div class="grid two" style="margin-top:20px">
-        <section class="panel"><h3>Slow down on purpose</h3><ul>${E.slowDown.map(x => `<li>${esc(x)}</li>`).join("")}</ul></section>
-        <section class="panel"><h3>Speak up</h3><ul>${E.talk.map(x => `<li>${esc(x)}</li>`).join("")}</ul>
-          <div class="try small"><b>Say it like this:</b> "Hi, I have extended time on exams. Can you tell me where I'll take the ${esc(S.className("english"))} exam?"</div>
-        </section>
-      </div>`;
-  }
-
-  /* ---------- MindPrint report upload ---------- */
   async function handleMindprint(file) {
     toast("Reading your report...");
     const rec = { name: file.name, link: "" };
     if (window.Drive.user) {
-      try {
-        const r = await window.Drive.uploadToSubfolder(file, "MindPrint", "mindprintFolderId", `MindPrint report - ${file.name}`);
-        rec.link = r.webViewLink || "";
-      } catch (err) { toast(`Couldn't save to Drive: ${err.message}`); }
+      try { const r = await window.Drive.uploadToSubfolder(file, "MindPrint", "mindprintFolderId", `MindPrint report - ${file.name}`); rec.link = r.webViewLink || ""; }
+      catch (err) { toast(`Couldn't save to Drive: ${err.message}`); }
     }
     st().mindprintReport = rec;
     save();
-    let found = null;
-    let readable = true;
+    let found = null, readable = true;
     try {
       const text = await window.StudyGuide.extract(file);
-      if (text == null) readable = false;
-      else found = window.StudyGuide.readMindprint(text);
+      if (text == null) readable = false; else found = window.StudyGuide.readMindprint(text);
     } catch (e) { readable = false; }
     render();
     if (found && Object.keys(found.order || {}).length) reviewMindprint(found);
-    else openModal(`<div class="modal-body"><h3>Your report is saved</h3>
-      <p>${readable ? "Exam Prep HQ couldn't find the “My Profile” boxes in this file." : "Exam Prep HQ can't read photos or this file type automatically."}
-      Keep your report open and put the skills in each box in the same order. It takes about a minute.</p></div>
-      <div class="modal-foot"><button class="btn" data-act="modal-close">OK</button></div>`);
+    else {
+      ui.mpEdit = true;
+      render();
+      openModal(`<div class="modal-body"><h3>We saved your report</h3>
+        <p>${readable ? "We couldn't read the skills from it." : "We can't read photos."} Open your report and use ▲ ▼ to put the skills in the same order. It takes about a minute.</p></div>
+        <div class="modal-foot"><button class="btn" data-act="modal-close">OK</button></div>`);
+    }
   }
 
   function reviewMindprint(found) {
     const MP = C.mindprint;
     const cats = MP.domains.filter(d => found.order[d.id]);
-    const missing = MP.domains.filter(d => !found.order[d.id]);
     openModal(`
       <form method="dialog">
         <div class="modal-body">
-          <h3>Here's what we read from your report</h3>
-          <p class="muted">Compare this with the "My Profile" boxes on your report. You can fix the order afterward with ▲ and ▼.</p>
+          <h3>Does this match your report?</h3>
           <div class="mp-boxes compact">${cats.map(d => `
-            <div class="mp-box">
-              <div class="mp-box-head"><h4>${esc(d.name)}</h4></div>
+            <div class="mp-box"><div class="mp-box-head"><h4>${esc(d.name)}</h4></div>
               <ol class="mp-rank">${found.order[d.id].map(id => `<li><span class="mp-name">${esc(MP.skills[id].name)}</span></li>`).join("")}</ol>
-              ${found.top[d.id] ? `<p class="xs" style="margin:6px 0 0"><b>Top Strategy:</b> ${esc(found.top[d.id])}</p>` : ""}
             </div>`).join("")}</div>
-          ${missing.length ? `<p class="small warn" style="margin-top:12px">We couldn't find the ${missing.map(d => d.name).join(" and ")} box. Put those skills in order yourself after you save.</p>` : ""}
-          ${found.strategies.length ? `<p class="small" style="margin-top:12px">We also found <b>${found.strategies.length} recommended strategies</b> and will show you how to use them for exams.</p>` : ""}
           <fieldset style="border:0;padding:0;margin:14px 0 0">
-            <legend style="font-weight:700;margin-bottom:6px">Which box is highlighted on your report? <span class="small muted" style="font-weight:500">(It's taller, with a colored border.)</span></legend>
+            <legend style="font-weight:700;margin-bottom:6px">Which box is highlighted on your report?</legend>
             <div class="seg">${MP.domains.map(d => `<label class="seg-radio"><input type="radio" name="strongest" value="${d.id}"><span>${esc(d.name)}</span></label>`).join("")}
               <label class="seg-radio"><input type="radio" name="strongest" value="" checked><span>Not sure</span></label></div>
           </fieldset>
         </div>
-        <div class="modal-foot">
-          <button class="btn ghost" type="button" data-act="modal-close">Cancel</button>
-          <button class="btn" type="submit">Looks right, save it</button>
-        </div>
+        <div class="modal-foot"><button class="btn ghost" type="button" data-act="mp-fix">No, let me fix it</button><button class="btn" type="submit">Yes, save it</button></div>
       </form>`);
-    $("#modal form").addEventListener("submit", ev => {
-      ev.preventDefault();
+    const apply = () => {
       const m = st().mindprint;
       Object.assign(m.order, found.order);
       Object.assign(m.top, found.top);
       if (found.strategies.length) m.strategies = found.strategies;
       const pick = $("#modal input[name=strongest]:checked");
       if (pick && pick.value) m.strongest = pick.value;
+    };
+    $("#modal form").addEventListener("submit", ev => {
+      ev.preventDefault();
+      apply();
+      ui.mpEdit = false;
       closeModal();
       save({ planInputs: true });
       render();
-      toast("MindPrint profile saved. Your playbook is ready.");
+      toast("MindPrint saved.");
+    });
+    $("#modal [data-act=mp-fix]").addEventListener("click", ev => {
+      ev.stopPropagation();
+      apply();
+      ui.mpEdit = true;
+      closeModal();
+      save({ planInputs: true });
+      render();
     });
   }
 
   /* ---------- Google Calendar ---------- */
   async function syncGoogleCalendar() {
-    const s = st();
-    if (!s.plan) { toast("Build your plan first, then add it to Google Calendar."); return; }
+    if (!st().plan) { toast("Make your plan first."); return; }
     try {
       if (!window.Drive.user) await signIn(true);
       else await window.Drive.connectCalendar();
       if (!window.Drive.user) return;
       if (!window.Drive.hasCalendar()) throw new Error("Calendar permission wasn't given. Try again and check the Google Calendar box.");
-      const events = window.Exports.googleEvents();
+      closeModal();
       toast("Adding to Google Calendar...");
-      const n = await window.Drive.syncCalendar(events, (done, total) => {
-        $("#toast").textContent = `Updating Google Calendar: ${Math.round(100 * done / total)}%`;
+      const n = await window.Drive.syncCalendar(window.Exports.googleEvents(), (done, total) => {
+        $("#toast").textContent = `Adding to Google Calendar: ${Math.round(100 * done / total)}%`;
       });
       st().drive.calendarSyncedAt = Date.now();
       save({ now: true });
       render();
-      openModal(`<div class="modal-body"><h3>It's on your Google Calendar</h3>
-        <p>${n} events are in a new calendar called <b>Exam Prep HQ</b>. You'll get a reminder 10 minutes before each study session, the night before and 15 minutes before each tutorial, and at 6 p.m. the night before each exam.</p>
-        <p class="small muted">Rebuilt your plan or added a tutorial? Press "Update Google Calendar" again and it replaces the old events. Your other calendars are never touched.</p></div>
+      openModal(`<div class="modal-body"><h3>🔔 It's on your Google Calendar</h3>
+        <p>${n} events are in a calendar called <b>Exam Prep HQ</b>. You'll get a reminder 10 minutes before each session.</p>
+        <p class="small muted">If you update your plan, tap "Update Google Calendar" so it matches.</p></div>
         <div class="modal-foot"><button class="btn ghost" data-act="modal-close">Close</button><a class="btn" href="https://calendar.google.com" target="_blank" rel="noopener">Open Google Calendar</a></div>`);
     } catch (err) {
       toast(`Couldn't update Google Calendar: ${err.message}`);
@@ -1050,29 +975,31 @@
   /* ======================================================================
      ROUTER + RENDER
      ====================================================================== */
-  const PAGES = { home: pageHome, classes: pageClasses, calendar: pageCalendar, plan: pagePlan, tutorials: pageTutorials, mindprint: pageMindprint, lab: pageLab, time: pageTime };
-  let lastRoute = null;
-
   function route() {
-    const r = (location.hash || "#home").slice(1);
-    return PAGES[r] ? r : "home";
+    const [page, sub] = (location.hash || "#today").slice(1).split("/");
+    const known = ["today", "plan", "classes", "week", "tips", "start"];
+    return { page: known.includes(page) ? page : "today", sub };
   }
 
+  let lastKey = null;
   function render() {
     const r = route();
-    renderTabs(r);
+    renderTabs(r.page === "start" ? "" : r.page);
     renderAccount();
-    $("#main").innerHTML = PAGES[r]();
-    const page = ROUTES.find(x => x.id === r);
-    document.title = `${page.label} | Exam Prep HQ`;
-    bindPage();
-    if (r !== lastRoute) {
-      if (lastRoute !== null) { window.scrollTo(0, 0); $("#main").focus({ preventScroll: true }); }
-      lastRoute = r;
+    document.body.classList.toggle("in-setup", r.page === "start");
+    const html = r.page === "today" ? pageToday() : r.page === "plan" ? pagePlan() : r.page === "classes" ? pageClasses()
+      : r.page === "week" ? pageWeek() : r.page === "tips" ? pageTips(r.sub) : pageStart(r.sub);
+    $("#main").innerHTML = html;
+    const tab = TABS.find(x => x.id === r.page);
+    document.title = `${tab ? tab.label : "Make my plan"} | Exam Prep HQ`;
+    bindDrops();
+    const key = r.page + "/" + (r.sub || "");
+    if (key !== lastKey) {
+      if (lastKey !== null) { window.scrollTo(0, 0); $("#main").focus({ preventScroll: true }); }
+      lastKey = key;
     }
   }
 
-  // Re-render but put keyboard focus back on the same control.
   function rerenderKeepFocus(el) {
     const key = el && el.dataset ? JSON.stringify(el.dataset) : null;
     render();
@@ -1088,46 +1015,37 @@
     o[parts[parts.length - 1]] = value;
   }
 
-  function bindPage() {
-    $$("[data-mpdrop]").forEach(z => {
+  function bindDrops() {
+    const wire = (sel, fn) => $$(sel).forEach(z => {
       z.addEventListener("dragover", e => { e.preventDefault(); z.classList.add("over"); });
       z.addEventListener("dragleave", () => z.classList.remove("over"));
-      z.addEventListener("drop", e => {
-        e.preventDefault(); z.classList.remove("over");
-        if (e.dataTransfer.files.length) handleMindprint(e.dataTransfer.files[0]);
-      });
+      z.addEventListener("drop", e => { e.preventDefault(); z.classList.remove("over"); if (e.dataTransfer.files.length) fn(z, Array.from(e.dataTransfer.files)); });
     });
-    // Drag and drop study guides
-    $$("[data-drop]").forEach(z => {
-      z.addEventListener("dragover", e => { e.preventDefault(); z.classList.add("over"); });
-      z.addEventListener("dragleave", () => z.classList.remove("over"));
-      z.addEventListener("drop", e => {
-        e.preventDefault(); z.classList.remove("over");
-        if (e.dataTransfer.files.length) handleFiles(z.dataset.drop, Array.from(e.dataTransfer.files));
-      });
-    });
+    wire("[data-drop]", (z, files) => handleFiles(z.dataset.drop, files));
+    wire("[data-mpdrop]", (z, files) => handleMindprint(files[0]));
   }
 
-  /* ---------- Event delegation ---------- */
+  /* ---------- Clicks ---------- */
   document.addEventListener("click", async e => {
     const el = e.target.closest("[data-act]");
     if (!el) return;
-    const act = el.dataset.act;
     const s = st();
-
-    switch (act) {
-      case "set": {
-        const v = el.dataset.num ? Number(el.dataset.v) : el.dataset.v;
-        setPath(el.dataset.path, v);
+    switch (el.dataset.act) {
+      case "set":
+        setPath(el.dataset.path, el.dataset.num ? Number(el.dataset.v) : el.dataset.v);
         save({ planInputs: !!el.dataset.plan });
         rerenderKeepFocus(el);
         break;
-      }
+      case "study-time":
+        s.prefs[`${el.dataset.which}Start`] = el.dataset.start;
+        s.prefs[`${el.dataset.which}End`] = el.dataset.end;
+        save({ planInputs: true });
+        rerenderKeepFocus(el);
+        break;
       case "class-conf": {
         const c = s.classes[el.dataset.class];
         const old = Number(c.confidence);
         c.confidence = Number(el.dataset.v);
-        // Topics that still match the old overall rating follow the new one.
         c.topics.forEach(t => { if (Number(t.conf) === old) t.conf = c.confidence; });
         save({ planInputs: true });
         rerenderKeepFocus(el);
@@ -1140,161 +1058,108 @@
         rerenderKeepFocus(el);
         break;
       }
-      case "topic-del": {
-        const c = s.classes[el.dataset.class];
-        c.topics = c.topics.filter(x => x.id !== el.dataset.id);
-        save({ planInputs: true });
-        render();
-        break;
-      }
-      case "guide-del": {
+      case "topic-del":
+        s.classes[el.dataset.class].topics = s.classes[el.dataset.class].topics.filter(x => x.id !== el.dataset.id);
+        save({ planInputs: true }); render(); break;
+      case "guide-del":
         s.classes[el.dataset.class].guides.splice(Number(el.dataset.i), 1);
-        save();
-        render();
-        toast("Removed from this list. If it's in your Drive folder, it's still there.");
-        break;
-      }
+        save(); render(); break;
+      case "class-toggle":
+        ui.openClass = ui.openClass === el.dataset.class ? null : el.dataset.class;
+        rerenderKeepFocus(el); break;
       case "paste": pasteModal(el.dataset.class); break;
       case "modal-close": closeModal(); break;
 
-      case "preset": {
-        ui.busyLabel = el.dataset.label;
-        const input = $("#b-label");
-        if (input) { input.value = el.dataset.label; input.focus(); }
-        break;
-      }
-      case "busy-type": {
-        ui.busyLabel = ($("#b-label") || {}).value || "";
-        ui.busyType = el.dataset.v;
-        rerenderKeepFocus(el);
-        break;
-      }
-      case "busy-del": {
-        s.busy = s.busy.filter(b => b.id !== el.dataset.id);
-        save({ planInputs: true });
-        render();
-        break;
-      }
-      case "off-del": {
-        s.prefs.offDates = s.prefs.offDates.filter(d => d !== el.dataset.d);
-        save({ planInputs: true });
-        render();
-        break;
-      }
-      case "cal-done": s.calendarChecked = true; save(); break;
+      case "preset": ui.busyOpen = true; ui.busyLabel = el.dataset.label; ui.busyType = "weekly"; render(); { const i = $("#b-label"); if (i) i.focus(); } break;
+      case "busy-cancel": ui.busyOpen = false; render(); break;
+      case "busy-type": ui.busyLabel = ($("#b-label") || {}).value || ""; ui.busyType = el.dataset.v; rerenderKeepFocus(el); break;
+      case "busy-del": s.busy = s.busy.filter(b => b.id !== el.dataset.id); save({ planInputs: true }); render(); break;
+      case "off-del": s.prefs.offDates = s.prefs.offDates.filter(d => d !== el.dataset.d); save({ planInputs: true }); render(); break;
 
-      case "build": buildPlan(); break;
+      case "tut-done": {
+        const t = s.tutorials.find(x => x.id === el.dataset.id);
+        if (t) { t.done = !t.done; if (t.done) toast("Nice. If a topic feels better now, tap a happier face on My classes."); }
+        s.tutorialsUpdatedAt = Date.now(); save(); rerenderKeepFocus(el); break;
+      }
+      case "tut-del": s.tutorials = s.tutorials.filter(x => x.id !== el.dataset.id); s.tutorialsUpdatedAt = Date.now(); save({ planInputs: true }); render(); break;
+
+      case "wiz-finish":
+        s.plan = window.Planner.generate(s);
+        s.planStale = false;
+        s.onboarded = true;
+        save();
+        location.hash = "#start/done";
+        confetti();
+        break;
+      case "build": buildPlan(); render(); break;
       case "toggle-session": {
         const x = s.plan.sessions.find(y => y.id === el.dataset.id);
-        if (x) {
-          x.done = !x.done;
-          if (x.done) toast(["Nice work.", "Another one done.", "That's how it's done.", "Progress."][Math.floor(Math.random() * 4)]);
-        }
-        save();
-        rerenderKeepFocus(el);
-        break;
+        if (x) { x.done = !x.done; if (x.done) toast(["Nice work.", "Done. Another one down.", "That's how it's done.", "Keep it up."][Math.floor(Math.random() * 4)]); }
+        save(); rerenderKeepFocus(el); break;
       }
-      case "filter": ui.planFilter = el.dataset.v; rerenderKeepFocus(el); break;
-      case "reset": {
-        if (confirm("Erase all your Exam Prep HQ classes, calendar, and plan? This can't be undone.")) {
-          S.reset();
-          ui.planFilter = "all";
-          location.hash = "#home";
-          render();
-          toast("Everything's cleared. Fresh start.");
-        }
+      case "toggle-past": ui.showPast = !ui.showPast; render(); break;
+      case "reset":
+        if (confirm("Erase your classes, schedule, and plan? This can't be undone.")) { S.reset(); location.hash = "#today"; render(); toast("Everything's cleared."); }
         break;
-      }
 
+      case "save-menu": saveMenu(); break;
       case "exp-print": try { window.Exports.print(); } catch (err) { toast(err.message); } break;
-      case "exp-word": window.Exports.word(); toast("Downloaded. Open it in Word to edit."); break;
-      case "exp-csv": window.Exports.csv(); toast("Downloaded. Open it in Excel, Numbers, or Google Sheets."); break;
-      case "exp-ics": window.Exports.ics(); calendarHelp(); break;
+      case "exp-word": window.Exports.word(); toast("Downloaded."); break;
+      case "exp-csv": window.Exports.csv(); toast("Downloaded."); break;
+      case "exp-ics": window.Exports.ics(); toast("Downloaded. Open it to add it to your calendar."); break;
+      case "exp-gcal": await syncGoogleCalendar(); break;
       case "exp-gdoc":
       case "exp-gsheet": {
-        el.disabled = true;
         toast("Saving to your Drive...");
         try {
-          const r = act === "exp-gdoc" ? await window.Exports.googleDoc() : await window.Exports.googleSheet();
-          openModal(`<div class="modal-body"><h3>Saved to Google Drive</h3><p>"${esc(r.name)}" is in your ${esc(CFG.DRIVE_FOLDER_NAME)} folder, inside My Schedules. You can edit it however you like.</p></div>
+          const r = el.dataset.act === "exp-gdoc" ? await window.Exports.googleDoc() : await window.Exports.googleSheet();
+          openModal(`<div class="modal-body"><h3>Saved to Google Drive</h3><p>It's in your ${esc(CFG.DRIVE_FOLDER_NAME)} folder.</p></div>
             <div class="modal-foot"><button class="btn ghost" data-act="modal-close">Close</button><a class="btn" href="${esc(r.webViewLink)}" target="_blank" rel="noopener">Open it</a></div>`);
         } catch (err) { toast(`Couldn't save: ${err.message}`); }
-        el.disabled = false;
         break;
       }
 
-      case "mp-move": {
-        const m = s.mindprint;
-        const dom = C.mindprint.domains.find(d => d.id === el.dataset.cat);
-        const list = (m.order[dom.id] || dom.skills).slice();
-        const i = list.indexOf(el.dataset.skill), j = i + Number(el.dataset.dir);
-        if (j >= 0 && j < list.length) { [list[i], list[j]] = [list[j], list[i]]; }
-        m.order[dom.id] = list;
-        save({ planInputs: true });
-        rerenderKeepFocus(el);
+      case "flip": ui.flipped[el.dataset.i] = !ui.flipped[el.dataset.i]; el.setAttribute("aria-pressed", String(!!ui.flipped[el.dataset.i])); break;
+      case "copy-email":
+        try { await navigator.clipboard.writeText(C.tutorials.email); toast("Copied. Paste it into an email and fill in the blanks."); }
+        catch (err) { toast("Couldn't copy. Select the text and copy it instead."); }
         break;
+
+      case "mp-edit": ui.mpEdit = true; render(); break;
+      case "mp-done": ui.mpEdit = false; render(); break;
+      case "mp-all": ui.mpAll = !ui.mpAll; render(); break;
+      case "mp-move": {
+        const dom = C.mindprint.domains.find(d => d.id === el.dataset.cat);
+        const list = (s.mindprint.order[dom.id] || dom.skills).slice();
+        const i = list.indexOf(el.dataset.skill), j = i + Number(el.dataset.dir);
+        if (j >= 0 && j < list.length) [list[i], list[j]] = [list[j], list[i]];
+        s.mindprint.order[dom.id] = list;
+        save({ planInputs: true }); rerenderKeepFocus(el); break;
       }
       case "mp-confirm": {
         const dom = C.mindprint.domains.find(d => d.id === el.dataset.cat);
         s.mindprint.order[dom.id] = dom.skills.slice();
-        save({ planInputs: true });
-        render();
-        break;
+        save({ planInputs: true }); render(); break;
       }
-      case "mp-strongest": {
+      case "mp-strongest":
         s.mindprint.strongest = s.mindprint.strongest === el.dataset.cat ? "" : el.dataset.cat;
-        save({ planInputs: true });
-        rerenderKeepFocus(el);
-        break;
-      }
-      case "mp-clear": s.mindprint = { order: {}, strongest: "", top: {}, strategies: [] }; save({ planInputs: true }); render(); break;
-      case "mp-report-del": s.mindprintReport = null; save(); render(); toast("Removed from this list. If it's in your Drive folder, it's still there."); break;
-
-      case "tut-done": {
-        const t = s.tutorials.find(x => x.id === el.dataset.id);
-        if (t) {
-          t.done = !t.done;
-          if (t.done) toast("Nice. Rerate that topic on My classes if it feels better now.");
-        }
-        s.tutorialsUpdatedAt = Date.now();
-        save();
-        rerenderKeepFocus(el);
-        break;
-      }
-      case "tut-del": {
-        s.tutorials = s.tutorials.filter(x => x.id !== el.dataset.id);
-        s.tutorialsUpdatedAt = Date.now();
-        save({ planInputs: true });
-        render();
-        break;
-      }
-      case "exp-gcal": await syncGoogleCalendar(); break;
-
-      case "lab-tab": ui.labTab = el.dataset.v; rerenderKeepFocus(el); break;
-      case "lab-go": ui.labTab = el.dataset.tab; break;
-      case "flip": ui.flipped[el.dataset.i] = !ui.flipped[el.dataset.i]; el.setAttribute("aria-pressed", String(!!ui.flipped[el.dataset.i])); break;
+        save({ planInputs: true }); rerenderKeepFocus(el); break;
+      case "mp-clear": s.mindprint = { order: {}, strongest: "", top: {}, strategies: [] }; ui.mpEdit = false; save({ planInputs: true }); render(); break;
 
       case "signin":
       case "reconnect": await signIn(false); break;
       case "account-menu": {
         const u = window.Drive.user;
         openModal(`<div class="modal-body"><h3>Signed in</h3><p>${esc(u.name || "")}<br><span class="muted">${esc(u.email || "")}</span></p>
-          <p class="small muted">Your plan saves to the "${esc(CFG.DRIVE_FOLDER_NAME)}" folder in your Google Drive. Exam Prep HQ can only see files it made, not the rest of your Drive.</p></div>
+          <p class="small muted">Your plan saves to your Google Drive automatically.</p>
+          <p><a href="${window.Drive.folderLink()}" target="_blank" rel="noopener">📁 Open my Exam Prep folder</a></p></div>
           <div class="modal-foot"><button class="btn ghost" data-act="modal-close">Close</button><button class="btn" data-act="signout">Sign out</button></div>`);
         break;
       }
-      case "signout": {
-        window.Drive.signOut();
-        ui.sync = "local";
-        closeModal();
-        render();
-        toast("Signed out. Your plan is still saved on this device.");
-        break;
-      }
+      case "signout": window.Drive.signOut(); ui.sync = "local"; closeModal(); render(); toast("Signed out. Your plan is still saved on this device."); break;
     }
   });
 
-  // Text inputs bound to state
   document.addEventListener("change", e => {
     const el = e.target;
     if (el.dataset.bind) {
@@ -1339,27 +1204,25 @@
       if (ui.busyType === "weekly") {
         item.days = $$("input[name=day]:checked", f).map(i => Number(i.value));
         if (!item.days.length) { toast("Pick at least one day."); return; }
-      } else {
-        item.date = $("#b-date").value;
-      }
+      } else item.date = $("#b-date").value;
       st().busy.push(item);
-      ui.busyLabel = "";
+      ui.busyLabel = ""; ui.busyOpen = false;
       save({ planInputs: true });
       render();
       toast(`Added ${label}.`);
     }
     if (f.dataset.tutform !== undefined) {
       e.preventDefault();
-      const start = $("#t-start").value, end = $("#t-end").value, date = $("#t-date").value;
-      if (!date) { toast("Pick a date."); return; }
-      if (end <= start) { toast("The end time needs to be after the start time."); return; }
+      const date = $("#t-date").value;
+      if (!date) { toast("Pick a day."); return; }
+      if (D.isWeekend(date)) { toast("Tutorials are on school days. Pick a weekday."); return; }
       const classId = $("#t-class").value;
-      st().tutorials.push({ id: uid(), classId, date, start, end, done: false });
+      if (st().tutorials.some(t => t.date === date)) { toast("You already have a tutorial that day. Pick another day."); return; }
+      st().tutorials.push({ id: uid(), classId, date, start: CFG.TUTORIAL_START, end: CFG.TUTORIAL_END, done: false });
       st().tutorialsUpdatedAt = Date.now();
       save({ planInputs: true });
       render();
-      toast(`Added ${S.className(classId)} tutorial on ${D.pretty(date)}.`);
-      return;
+      toast(`Added: ${S.className(classId)} tutorial, ${D.pretty(date)}.`);
     }
     if (f.dataset.offform !== undefined) {
       e.preventDefault();
@@ -1369,14 +1232,6 @@
       render();
     }
   });
-
-  function calendarHelp() {
-    openModal(`<div class="modal-body"><h3>Add your plan to a calendar</h3>
-      <p><b>Google Calendar:</b> on a computer, open Google Calendar, click the gear (Settings), choose Import &amp; export, then pick the "Exam Prep Plan.ics" file you just downloaded.</p>
-      <p><b>Apple Calendar:</b> double-click the downloaded file and choose which calendar to add it to.</p>
-      <p class="small muted">Tip: import it into a new calendar named "Exam Prep" so it's easy to remove later if you rebuild your plan.</p></div>
-      <div class="modal-foot"><button class="btn" data-act="modal-close">Got it</button></div>`);
-  }
 
   /* ---------- Google sign-in + sync ---------- */
   async function signIn(withCalendar) {
@@ -1407,13 +1262,8 @@
     if (!window.Drive.user) return;
     if (!window.Drive.signedIn()) { ui.sync = "reconnect"; renderAccount(); return; }
     ui.sync = "saving"; renderAccount();
-    try {
-      await window.Drive.saveData(state);
-      S.persistLocal();
-      ui.sync = "saved";
-    } catch (err) {
-      ui.sync = "error";
-    }
+    try { await window.Drive.saveData(state); S.persistLocal(); ui.sync = "saved"; }
+    catch (err) { ui.sync = "error"; }
     renderAccount();
   });
 

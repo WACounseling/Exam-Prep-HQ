@@ -22,7 +22,8 @@
   }
 
   function tutorials() { return (S.state.tutorials || []).slice().sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start)); }
-  function hitList(classId) {
+  // "Topics to ask about" at tutorials: topics rated 1-2, or 3 if nothing is lower.
+  function askTopics(classId) {
     const t = S.state.classes[classId].topics.filter(x => Number(x.conf) <= 2).map(x => x.text);
     return t.length ? t : S.state.classes[classId].topics.filter(x => Number(x.conf) === 3).map(x => x.text);
   }
@@ -40,7 +41,7 @@
       const exams = day.exams.map(e =>
         `<tr><td style="border:1px solid #ccc;padding:6px;">⭐</td><td style="border:1px solid #ccc;padding:6px;"><b>${esc(S.className(e.id))} exam</b></td><td style="border:1px solid #ccc;padding:6px;">${mins} minutes. You've got this.</td></tr>`).join("");
       const tuts = day.tutorials.map(t =>
-        `<tr><td style="border:1px solid #ccc;padding:6px;white-space:nowrap;">☐ ${D.clock(t.start)}</td><td style="border:1px solid #ccc;padding:6px;border-left:6px solid #ffc513;"><b>🙋 ${esc(S.className(t.classId))} tutorial</b></td><td style="border:1px solid #ccc;padding:6px;">Bring: ${esc(hitList(t.classId).slice(0, 3).join("; ") || "your study guide and 2 or 3 specific questions")}</td></tr>`).join("");
+        `<tr><td style="border:1px solid #ccc;padding:6px;white-space:nowrap;">☐ ${D.clock(t.start)}</td><td style="border:1px solid #ccc;padding:6px;border-left:6px solid #ffc513;"><b>🙋 ${esc(S.className(t.classId))} tutorial</b></td><td style="border:1px solid #ccc;padding:6px;">Bring: ${esc(askTopics(t.classId).slice(0, 3).join("; ") || "your study guide and 2 or 3 specific questions")}</td></tr>`).join("");
       const busy = busyFor(day.date).map(b =>
         `<tr><td style="border:1px solid #ccc;padding:6px;color:#555;">${D.clock(b.start)}</td><td style="border:1px solid #ccc;padding:6px;color:#555;" colspan="2">${esc(b.label || "Busy")}</td></tr>`).join("");
       const ses = day.sessions.map(s =>
@@ -79,7 +80,7 @@
     const head = ["Date", "Day", "Start", "End", "Class", "Session", "Study guide topic", "How to study", "Done"];
     const lines = [head.map(q).join(",")];
     sessions().forEach(s => lines.push([s.date, D.days[D.dow(s.date)], D.clock(s.start), D.clock(s.end), S.className(s.classId), s.title, s.topicText, s.tip, s.done ? "Yes" : ""].map(q).join(",")));
-    tutorials().forEach(t => lines.push([t.date, D.days[D.dow(t.date)], D.clock(t.start), D.clock(t.end), S.className(t.classId), "Tutorial", hitList(t.classId).slice(0, 3).join("; "), "Bring 2 or 3 specific questions", t.done ? "Yes" : ""].map(q).join(",")));
+    tutorials().forEach(t => lines.push([t.date, D.days[D.dow(t.date)], D.clock(t.start), D.clock(t.end), S.className(t.classId), "Tutorial", askTopics(t.classId).slice(0, 3).join("; "), "Bring 2 or 3 specific questions", t.done ? "Yes" : ""].map(q).join(",")));
     CFG.EXAMS.forEach(e => lines.push([e.date, D.days[D.dow(e.date)], "", "", S.className(e.id), "EXAM", "", `${S.examMinutes()} minutes`, ""].map(q).join(",")));
     return lines.join("\r\n");
   }
@@ -100,7 +101,7 @@
       ev.push(["BEGIN:VEVENT", `UID:tut-${t.id}@examprephq`, `DTSTAMP:${stamp}`,
         `DTSTART:${dt(t.date, t.start)}`, `DTEND:${dt(t.date, t.end)}`,
         `SUMMARY:${fold("🙋 " + S.className(t.classId) + " tutorial")}`,
-        `DESCRIPTION:${fold("Bring: " + (hitList(t.classId).slice(0, 3).join("; ") || "2 or 3 specific questions"))}`,
+        `DESCRIPTION:${fold("Bring: " + (askTopics(t.classId).slice(0, 3).join("; ") || "2 or 3 specific questions"))}`,
         "BEGIN:VALARM", "TRIGGER:-PT15M", "ACTION:DISPLAY", "DESCRIPTION:Tutorial soon", "END:VALARM",
         "END:VEVENT"].join("\r\n"));
     });
@@ -129,7 +130,7 @@
     }));
     tutorials().filter(t => t.date >= today && !t.done).forEach(t => out.push({
       summary: `🙋 ${S.className(t.classId)} tutorial`,
-      description: `Bring: ${hitList(t.classId).slice(0, 3).join("; ") || "your study guide and 2 or 3 specific questions"}`,
+      description: `Bring: ${askTopics(t.classId).slice(0, 3).join("; ") || "your study guide and 2 or 3 specific questions"}`,
       start: at(t.date, t.start), end: at(t.date, t.end), colorId: "5",
       reminders: { useDefault: false, overrides: [{ method: "popup", minutes: 15 }, { method: "popup", minutes: 12 * 60 }] }
     }));
@@ -147,7 +148,7 @@
   const Exports = {
     planHTML,
     googleEvents,
-    hitList,
+    askTopics,
     print() {
       const w = window.open("", "_blank");
       if (!w) throw new Error("Your browser blocked the print window. Allow pop-ups for this site and try again.");

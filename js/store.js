@@ -53,7 +53,7 @@
       tutorials: [],          // { id, classId, date, start, end, done }
       prefs: {
         startDate: D.today(),
-        weekdayStart: "16:30", weekdayEnd: "20:30",
+        weekdayStart: "16:00", weekdayEnd: "20:30",
         weekendStart: "10:00", weekendEnd: "17:00",
         sessionLen: 30,
         maxWeekday: 2, maxWeekend: 3,

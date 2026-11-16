@@ -18,6 +18,10 @@ window.PREP_CONFIG = {
   DIVISION: "Middle School",
   SEMESTER_LABEL: "Fall 2026 semester exams",
 
+  // Tutorial time with teachers (school days only). Students just pick the class and day.
+  TUTORIAL_START: "15:15",
+  TUTORIAL_END: "15:40",
+
   // 4) Exam length in minutes (standard time).
   EXAM_MINUTES: 70,
 

@@ -1,288 +1,88 @@
 /* ==========================================================================
-   PREP HQ: ALL THE READING CONTENT
+   EXAM PREP HQ: ALL THE READING CONTENT
    Teachers and counselors can edit the words here without touching the app code.
+   Keep it short: students are more likely to read 2 sentences than 10.
    ========================================================================== */
 window.CONTENT = {
 
-  /* ---------- Strategy Lab topics ---------- */
-  lab: [
-    {
-      id: "study",
-      title: "Study smarter",
-      emoji: "🧠",
-      blurb: "Rereading feels productive but barely sticks. These moves make your brain do the work, which is exactly why they work.",
-      cards: [
-        {
-          title: "Retrieval practice",
-          body: "Close your notes and pull the information out of your head. Every time you remember something on purpose, the memory gets stronger. Checking afterward shows you exactly what you missed.",
-          try: "Blurt it: set a 5-minute timer, write everything you know about one topic on a blank page, then open your notes and fill the gaps in a different color."
-        },
-        {
-          title: "Spread it out (spaced practice)",
-          body: "Studying a topic for 30 minutes on three different days beats 90 minutes the night before. Forgetting a little between sessions and then remembering again is what locks it in.",
-          try: "Your Exam Prep HQ plan already spaces each topic at least two days apart. Stick to it, even when a topic feels done."
-        },
-        {
-          title: "Mix it up (interleaving)",
-          body: "Practicing one kind of problem 20 times in a row feels easy, but tests mix things up. Shuffling problem types teaches you to figure out which strategy to use.",
-          try: "In math or science, pick 6–8 problems from different sections and do them in random order."
-        },
-        {
-          title: "Explain why and how",
-          body: "Asking yourself \"Why is this true?\" and \"How does this connect to what we learned before?\" turns facts into understanding.",
-          try: "Pretend you're explaining the topic to a fifth grader. If you get stuck, that's the part to review."
-        },
-        {
-          title: "Words + pictures",
-          body: "Pairing words with a sketch, diagram, timeline, or chart gives your brain two ways to find the information later.",
-          try: "Turn one page of notes into a one-page drawing: arrows, boxes, and labels only."
-        },
-        {
-          title: "Make it concrete",
-          body: "Abstract ideas stick better with a real example attached. Teachers often test whether you can apply an idea, not just define it.",
-          try: "For every vocab word or concept on your study guide, write one example from class and one from your own life."
-        },
-        {
-          title: "Focus sprints",
-          body: "Your brain focuses best in short bursts. Work hard for 25 minutes, then take a real 5-minute break away from the screen.",
-          try: "Put your phone in another room (not just face-down). Start a timer and pick one task before you begin."
-        }
-      ]
-    },
-    {
-      id: "organize",
-      title: "Get organized",
-      emoji: "🗂️",
-      blurb: "Before you can study, you need to find your stuff. A 20-minute reset now saves hours of searching later.",
-      cards: [
-        {
-          title: "The binder and backpack reset",
-          body: "Empty everything out. Make three piles: keep for the exam, keep but file away, and recycle. Put every handout for each class in order by date or unit.",
-          try: "Do one class per day this week. It feels faster when it's small."
-        },
-        {
-          title: "One home for each class",
-          body: "Give each class one physical folder and one digital folder. Your study guide, old quizzes, and notes for that class all live there.",
-          try: "If you're signed in, Exam Prep HQ already made a Study Guides folder in your Google Drive. Upload each guide there."
-        },
-        {
-          title: "Gather your best study material",
-          body: "Old quizzes and tests are gold. They show you the kinds of questions your teacher asks and the mistakes you tend to make.",
-          try: "Find every quiz and test from this semester. Star the questions you missed. Those go on your study list."
-        },
-        {
-          title: "See your whole week",
-          body: "Practices, rehearsals, family plans, and appointments all take time. Adding them first means your study plan is one you can actually keep.",
-          try: "Add your cocurriculars and family plans on the Calendar page before you build your plan."
-        },
-        {
-          title: "A study spot that works",
-          body: "Same place, good light, and everything you need within reach. Your brain starts to connect that spot with focusing.",
-          try: "Stock your spot with pencils, highlighters, index cards, a water bottle, and a timer."
-        }
-      ]
-    },
-    {
-      id: "testday",
-      title: "Test-taking toolkit",
-      emoji: "🎯",
-      blurb: "Each exam is 70 minutes. Going in with a plan for those minutes is a skill you can practice.",
-      cards: [
-        {
-          title: "The first two minutes",
-          body: "Write your name. Take one slow breath. Flip through the whole exam so you know what's coming and which sections are worth the most points.",
-          try: "Jot down any formulas, dates, or memory tricks in the margin right away while they're fresh (if your teacher allows it)."
-        },
-        {
-          title: "Pace yourself",
-          body: "Divide your time by section. Do the questions you know first to bank points and build confidence. Circle hard ones and come back.",
-          try: "For a 70-minute exam: about 5 minutes to preview, about 55 to answer, and 10 to check your work."
-        },
-        {
-          title: "Multiple choice",
-          body: "Read the question and try to answer it before you look at the choices. Then cross out answers you know are wrong. Watch for words like NOT, EXCEPT, always, and never.",
-          try: "If two answers look right, reread the question. One usually answers it more completely."
-        },
-        {
-          title: "Short answer and essays",
-          body: "Answer exactly what the question asks. Underline the task words (explain, compare, analyze). Make a quick outline before you write.",
-          try: "Use the question's own words in your first sentence so your answer stays on target."
-        },
-        {
-          title: "Math and science problems",
-          body: "Write what you know, what you need to find, and which formula connects them. Show your steps, since partial credit is real.",
-          try: "Ask yourself: does my answer make sense? Check units and estimate before you move on."
-        },
-        {
-          title: "If your mind goes blank",
-          body: "It happens to everyone, and it passes. Put your pencil down, breathe in for 4 counts and out for 6, and move to a question you know.",
-          try: "Answering an easier question often unlocks the memory you were looking for."
-        },
-        {
-          title: "Use every minute",
-          body: "Finishing early is not a prize. Go back to circled questions, check that every question has an answer, and reread your written responses.",
-          try: "Check your work in a different way than you did it the first time, for example by plugging an answer back in."
-        }
-      ]
-    },
-    {
-      id: "balance",
-      title: "Balance and perspective",
-      emoji: "🌿",
-      blurb: "Your brain is part of your body. Sleep, movement, food, and fun are part of studying, not a break from it.",
-      cards: [
-        {
-          title: "Sleep is study time",
-          body: "While you sleep, your brain files away what you learned that day. Sleep experts recommend 9–12 hours a night for ages 6–12 and 8–10 hours for teens 13–18. Staying up late to cram usually costs more than it gains.",
-          try: "Pick a screens-off time and a lights-out time for exam week and stick to them, even on weekends."
-        },
-        {
-          title: "Move every day",
-          body: "Even a 15-minute walk, shooting hoops, or a dance break boosts focus and mood. Keep your practices and activities: they help your brain.",
-          try: "Use the 5-minute breaks between focus sprints to get up and move."
-        },
-        {
-          title: "Fuel up",
-          body: "Breakfast on exam days, water during study sessions, and real meals instead of only snacks help you think clearly.",
-          try: "Pack a water bottle and a snack in your backpack the night before each exam."
-        },
-        {
-          title: "Protect your fun",
-          body: "Time with friends, family, and hobbies keeps you from burning out. Exam Prep HQ only schedules part of your free time on purpose.",
-          try: "Turn on \"keep one day free\" in your study times. You'll come back sharper."
-        },
-        {
-          title: "One exam is one moment",
-          body: "An exam measures what you know on one day. It doesn't measure how smart you are, how hard you worked all semester, or who you are. And it's a chance to see what you've learned.",
-          try: "Swap \"I'm bad at this\" for \"I'm still learning this.\" Swap \"I have to be perfect\" for \"I'm going to do my best.\""
-        },
-        {
-          title: "Feeling nervous is normal",
-          body: "A little nervousness means you care, and it can even help you focus. If worry gets big, starts affecting sleep or eating, or won't go away, that's a sign to talk to someone.",
-          try: "Talk to a parent, teacher, advisor, or school counselor. Asking for help is a strong move, not a weak one."
-        },
-        {
-          title: "Compare less",
-          body: "Everyone studies differently and has different schedules. Hearing how long a friend studied doesn't tell you what you need.",
-          try: "Focus on your own plan and your own progress bar."
-        }
-      ]
-    },
-    {
-      id: "help",
-      title: "Ask for help",
-      emoji: "🙋",
-      blurb: "Teachers want to help, and asking early is much easier than asking the night before.",
-      cards: [
-        {
-          title: "Go to your teacher",
-          body: "Bring specific questions: \"I don't understand number 7 on the study guide\" gets a better answer than \"I don't get any of it.\"",
-          try: "Before you meet, mark the 2 or 3 study guide items you're least sure about."
-        },
-        {
-          title: "Email a teacher",
-          body: "Keep it short and polite. Say who you are, what class, what you're stuck on, and what you've already tried.",
-          try: "Subject: Question about the [Class] study guide\n\nHi [Teacher name],\nThis is [Your name] from [period/section]. I'm working on the study guide and I'm stuck on [topic or number]. I tried [what you did]. Could you explain it, or is there a time I could come see you?\nThank you,\n[Your name]"
-        },
-        {
-          title: "Study with a buddy",
-          body: "Quizzing each other is retrieval practice in disguise. Keep it focused: decide what you'll cover before you start.",
-          try: "Each person writes 5 questions, then you swap and answer without notes."
-        },
-        {
-          title: "Your support team",
-          body: "Advisors, learning specialists, and counselors are there for school stress, planning, and accommodations questions.",
-          try: "Not sure who to ask? Start with your advisor."
-        }
-      ]
-    },
-    {
-      id: "examweek",
-      title: "Exam week checklist",
-      emoji: "✅",
-      blurb: "Small habits that make exam week calmer.",
-      checklist: [
-        "Night before: pack pencils, erasers, calculator (if allowed), water, and a snack",
-        "Night before: do a light review only, no new material",
-        "Night before: screens off and lights out on time",
-        "Morning of: eat breakfast",
-        "Morning of: look over your one-page summary, not your whole notebook",
-        "Morning of: arrive early and know which room you're in",
-        "After the exam: take a real break before studying for the next one",
-        "After the exam: don't replay every question. That exam is done."
-      ]
-    }
+  /* ---------- "How it works" on the home page ---------- */
+  howItWorks: [
+    { emoji: "✏️", title: "Tell us about your classes", body: "Five quick questions. About 5 minutes." },
+    { emoji: "🗓️", title: "Get your plan", body: "Short study sessions that fit around your life." },
+    { emoji: "✅", title: "Do one or two a day", body: "Check them off. That's it." }
   ],
 
-  /* ---------- How to use Exam Prep HQ (home page) ---------- */
-  howTo: {
-    intro: "Exam Prep HQ works best as a quick habit, not a one-time project. Set it up once, then spend about two minutes a day with it.",
-    routine: [
-      { when: "Once, this week", emoji: "🛠️", title: "Set it up", body: "Add your grades, study guides, and calendar, then build your plan. Starting early is the whole trick: spaced practice needs days to work." },
-      { when: "Every day", emoji: "☀️", title: "Check \"Up next\"", body: "Open the home page, do the session, and check it off. Each session tells you which study guide topic to work on and how." },
-      { when: "Before each tutorial", emoji: "🙋", title: "Grab your hit list", body: "The Tutorials page lists your shakiest topics for each class. Bring two or three specific questions." },
-      { when: "Every Sunday", emoji: "🔄", title: "Rebuild and rerate", body: "Update grades, rerate topics that feel better (or worse), add new plans to your calendar, and rebuild. Finished sessions stay checked off." },
-      { when: "Night before each exam", emoji: "🌙", title: "Light review, then sleep", body: "Do your practice exam session, pack your bag, and go to bed on time. Sleep is when your brain locks it in." }
-    ],
-    tips: [
-      { title: "Be honest with your ratings", body: "Rating everything 😎 gives you fewer sessions, not more knowledge. Shaky topics get extra time on purpose." },
-      { title: "Put your plan where you'll see it", body: "Add it to Google Calendar so you get reminders, or print it and put it on the fridge or your desk." },
-      { title: "Missed a session? Just rebuild", body: "Plans change. Rebuild and Exam Prep HQ finds a new time. No guilt required." },
-      { title: "Share it with a parent", body: "Print your plan or send them the Google Doc so they know when you're studying and when you're free." }
-    ]
-  },
+  /* ---------- Tips (one idea per card, always with a "Try it") ---------- */
+  tips: [
+    {
+      id: "study", emoji: "🧠", title: "Study smarter", blurb: "Four moves that beat rereading.",
+      cards: [
+        { title: "Quiz yourself", body: "Pulling answers out of your memory makes them stick. Rereading doesn't.", try: "Close your notes. Write everything you remember for 5 minutes. Then check." },
+        { title: "Spread it out", body: "30 minutes on 3 different days beats 90 minutes the night before.", try: "Your plan already does this. Just follow it." },
+        { title: "Mix it up", body: "Tests mix topics together, so your practice should too.", try: "Do practice problems from different units in random order." },
+        { title: "Short sprints", body: "Your brain focuses best in short bursts.", try: "Phone in another room. Work 25 minutes, then take a 5-minute break." }
+      ]
+    },
+    {
+      id: "organize", emoji: "🗂️", title: "Get organized", blurb: "Find your stuff before you study it.",
+      cards: [
+        { title: "One folder per class", body: "Study guide, notes, and old quizzes all go together.", try: "Do one class a day this week. Small is fast." },
+        { title: "Old quizzes are gold", body: "They show what your teacher asks and what you tend to miss.", try: "Star every question you got wrong. Those go on your study list." },
+        { title: "A study spot", body: "Same place, good light, everything in reach.", try: "Stock it with pencils, index cards, water, and a timer." }
+      ]
+    },
+    {
+      id: "testday", emoji: "🎯", title: "Test day", blurb: "A plan for your 70 minutes.",
+      cards: [
+        { title: "First 2 minutes", body: "Breathe. Flip through the whole exam so nothing surprises you.", try: "Jot down formulas or memory tricks in the margin right away (if your teacher allows it)." },
+        { title: "Easy ones first", body: "Answer what you know to bank points. Circle hard ones and come back.", try: "Check the clock halfway through. Are you about halfway done?" },
+        { title: "Multiple choice", body: "Answer in your head first, then look at the choices.", try: "Cross out answers you know are wrong. Watch for NOT and EXCEPT." },
+        { title: "Written answers", body: "Answer exactly what the question asks.", try: "Underline the task word (explain, compare) and use the question's words in your first sentence." },
+        { title: "Mind went blank?", body: "It happens to everyone, and it passes.", try: "Breathe in for 4, out for 6. Skip to a question you know." }
+      ]
+    },
+    { id: "tutorials", emoji: "🙋", title: "Tutorials", blurb: "Get the most from 3:15 to 3:40.", special: true },
+    { id: "time", emoji: "⏱️", title: "Extended time", blurb: "Your time is yours. Use all of it.", special: true },
+    { id: "mindprint", emoji: "🧩", title: "My MindPrint", blurb: "Study the way your brain works best.", special: true },
+    {
+      id: "balance", emoji: "🌿", title: "Stay balanced", blurb: "Sleep and fun are part of studying.",
+      cards: [
+        { title: "Sleep is study time", body: "Your brain saves what you learned while you sleep. Most kids your age need 9 or more hours.", try: "Pick a screens-off time for exam week and stick to it." },
+        { title: "Keep moving", body: "Practices, walks, and dance breaks all help your brain focus.", try: "Use your 5-minute breaks to get up and move." },
+        { title: "One exam is one day", body: "A test shows what you know that day. It doesn't measure how smart you are or who you are.", try: "Swap \"I'm bad at this\" for \"I'm still learning this.\"" },
+        { title: "Nerves are normal", body: "A little nervousness means you care. If worry gets big or won't go away, talk to someone.", try: "Tell a parent, teacher, advisor, or counselor. That's a strong move." }
+      ]
+    },
+    {
+      id: "examweek", emoji: "✅", title: "Exam week checklist", blurb: "Little habits for calmer exam days.",
+      checklist: [
+        "Night before: pack pencils, calculator (if allowed), water, and a snack",
+        "Night before: light review only, nothing new",
+        "Night before: lights out on time",
+        "Morning of: eat breakfast",
+        "Morning of: know which room you're in",
+        "After each exam: take a real break before studying for the next one"
+      ]
+    },
+    { id: "myths", emoji: "🤔", title: "Myth or fact?", blurb: "Tap cards to test what you know.", special: true }
+  ],
 
   /* ---------- Tutorials page ---------- */
   tutorials: {
-    intro: "Tutorials are one-on-one or small-group time with the person who wrote your exam. That makes them the most powerful study time you have. A little prep turns a quick visit into answers you can't get anywhere else.",
+    intro: "Tutorials are time with the person who wrote your exam. Come with a plan and you'll leave with answers.",
     phases: [
-      {
-        title: "Before you go",
-        emoji: "📝",
-        items: [
-          "Try the study guide first. Teachers can help most when they can see where you got stuck.",
-          "Pick 2 or 3 specific questions. Your hit list below shows your shakiest topics.",
-          "Mark the exact problems or items on your study guide and bring it, plus your notes and old quizzes.",
-          "Check which tutorial times your teacher has. If a lot of students will be there, go early in the week or ask for another time."
-        ]
-      },
-      {
-        title: "While you're there",
-        emoji: "💬",
-        items: [
-          "Start with your most important question, in case time runs short.",
-          "Show your work: \"Here's what I tried. Where did I go wrong?\"",
-          "Ask your teacher to watch you solve one problem, then try the next one on your own while you're still there.",
-          "Ask about the exam: what kinds of questions, which units count most, and what a strong answer looks like.",
-          "Write down what you learned in your own words before you leave."
-        ]
-      },
-      {
-        title: "After",
-        emoji: "✅",
-        items: [
-          "Within a day, try one or two similar problems on your own to make sure it stuck.",
-          "Rerate that topic in Exam Prep HQ and rebuild your plan.",
-          "Still stuck? That's normal. Plan another tutorial for the same topic.",
-          "Say thank you. Teachers notice and appreciate it."
-        ]
-      }
+      { title: "Before", emoji: "📝", items: ["Try the study guide first.", "Pick 2 or 3 specific questions.", "Bring your study guide and notes."] },
+      { title: "During", emoji: "💬", items: ["Ask your most important question first.", "Show your work: \"Where did I go wrong?\"", "Ask what kinds of questions will be on the exam."] },
+      { title: "After", emoji: "✅", items: ["Try a similar problem on your own that night.", "Re-rate that topic in Exam Prep HQ.", "Still stuck? Go again. That's normal."] }
     ],
     starters: [
       "Can you show me how you'd start this problem?",
-      "What's the difference between ___ and ___?",
+      "I understand ___, but I get lost at ___.",
       "I got this answer. Can you check my steps?",
-      "What kinds of questions will be on the exam for this unit?",
-      "What does a strong short answer look like?",
-      "Which topics should I spend the most time on?",
-      "Is there a practice problem I could try right now?",
+      "What kinds of questions should I practice for this unit?",
       "What mistake do students usually make on this?"
     ],
-    avoid: [
-      { title: "\"I don't get any of it.\"", fix: "Instead: \"I understand ___, but I get lost at ___.\"" },
-      { title: "\"Can you go over everything?\"", fix: "Instead: pick the 2 or 3 topics you rated lowest." },
-      { title: "\"What's going to be on the test?\"", fix: "Instead: \"What kinds of questions should I practice for this unit?\"" }
-    ]
+    email: "Hi [Teacher name],\nThis is [your name] from [period]. I'm stuck on [topic or question number] on the study guide. I tried [what you did]. Could I come to tutorials on [day]?\nThank you,\n[Your name]"
   },
 
   /* ---------- Myth or fact flip cards ---------- */
@@ -405,22 +205,15 @@ window.CONTENT = {
   /* ---------- Extended time page ---------- */
   extended: {
     why: [
-      { title: "It's fair, not extra", body: "Extended time means the exam measures what you know instead of how fast you read, write, or process. Your classmates aren't missing anything; you're getting what you need to show your learning." },
-      { title: "Your brain does great work at its own pace", body: "Needing more time says nothing about how smart you are. Lots of strong thinkers work carefully, and careful is a good thing on an exam." },
-      { title: "Use it every time", body: "Some students rush to finish when everyone else does, or skip their accommodations because they don't want to look different. Students who use their full time usually do better. Your time is yours." }
+      { title: "It's fair, not extra", body: "It lets the exam measure what you know, not how fast you work." },
+      { title: "It says nothing about how smart you are", body: "Lots of strong thinkers work carefully. Careful is good on an exam." },
+      { title: "Use every minute", body: "Students who use their full time usually do better. When others leave, that's not your signal." }
     ],
     slowDown: [
-      "Read every question all the way to the end before answering.",
-      "Underline key words like NOT, EXCEPT, explain, and compare.",
-      "For long readings, read the questions first, then the passage.",
-      "Write out math and science steps instead of doing them in your head.",
-      "Take a 30-second breathing break if you start to feel rushed.",
-      "Don't watch other people. When they leave, it isn't a signal for you to finish."
-    ],
-    talk: [
-      "Not sure what your accommodations are? Ask your advisor or learning specialist.",
-      "Before exam week, check where you'll take each exam and how much time you'll have.",
-      "If something isn't working on test day, tell your teacher or proctor right away."
+      "Read every question all the way to the end.",
+      "Underline key words like NOT, EXCEPT, and explain.",
+      "Write out your math steps.",
+      "Feeling rushed? Take a 30-second breathing break."
     ]
   },
 
