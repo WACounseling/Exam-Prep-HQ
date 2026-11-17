@@ -24,8 +24,14 @@ A study-planning website for Woodward Academy 7th and 8th graders. Students add 
 - **Feeling overwhelmed?** opens four calm options: one minute of guided breathing, talk to someone (parent, advisor, teacher, or counselor), extra breaks, and "just start."
   - **Extra breaks never reduce study time.** Each session is split into 15-minute sprints with 5-minute breaks in between, and the schedule adds room for them.
 - **Every class gets at least 5 study sessions** plus a practice exam, even without a study guide.
+- **Three always-visible buttons** on Today and at the top of My plan:
+  - **🖨️ Print my plan:** the whole schedule as a checklist.
+  - **📅 Add to my calendar:** syncs directly to Google Calendar when Google sign-in is on. Otherwise it downloads a calendar file, with steps to import it into Google Calendar, Apple Calendar, or Outlook.
+  - **🔁 Make up missed sessions:** shows how many were missed and moves them to new times.
+- **Missed sessions** appear at the top of Today with **Do it now** and **Move to a new time** buttons.
+- **"Can't do it? Move it"** on every session asks "Later today" or "Another day," then finds the next open time.
 - **Five tabs:** Today, My plan, My classes, My week, and Tips. On phones, the tabs sit at the bottom of the screen.
-- **Save my plan:** add to Google Calendar (with reminders), print, share with a parent or advisor (as a read-only Google Doc), or download a Google Doc, Google Sheet, Word, calendar, or spreadsheet file.
+- **More ways to save or share** (link under the three buttons): share with a parent or advisor as a read-only Google Doc, or download a Google Doc, Google Sheet, Word, calendar, or spreadsheet file.
 - **Text and display (Aa button):** larger text, an easier-to-read font (Atkinson Hyperlegible), and high contrast. Saved on each device.
 - **Accessibility:** every page and pop-up passes automated WCAG 2.1 AA checks (axe-core). Labels are shown under the face ratings, everything works with a keyboard, and reduced-motion settings are respected.
 - **Demo mode for advisory:** add `?demo` to the site address (for example `https://YOUR-USERNAME.github.io/Exam-Prep-HQ/?demo`) to show a made-up student, Maya, on a projector. Demo data is kept separately, rebuilt with dates starting from today, and never saved to anyone's account. There's also a link in **Start over**.
