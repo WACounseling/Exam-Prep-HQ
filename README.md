@@ -30,7 +30,10 @@ A study-planning website for Woodward Academy 7th and 8th graders. Students add 
   - **🔁 Make up missed sessions:** shows how many were missed and moves them to new times.
 - **Missed sessions** appear at the top of Today with **Do it now** and **Move to a new time** buttons.
 - **"Can't do it? Move it"** on every session asks "Later today" or "Another day," then finds the next open time.
-- **Five tabs:** Today, My plan, My classes, My week, and Tips. On phones, the tabs sit at the bottom of the screen.
+- **Five tabs:** Today, **My Study Plan**, **My Weekly Schedule**, My classes, and Tips. On phones, the tabs sit at the bottom of the screen, with short names ("Study plan," "Schedule").
+  - **My Study Plan:** every session until exams, as short cards grouped by week. **Tap any session** to open its details: when it is, what to do (with read-aloud), the materials to use, why it's happening now, and **Start**, **Move it**, **Mark done**, and **Stuck? Ask my teacher** buttons.
+  - **My Weekly Schedule:** a week calendar (with arrows through exam week) showing study sessions, tutorials, busy times, days off, and exams. Tap anything to see or change it. **+ Add** on any day adds a tutorial, a busy time (just that day or every week), or a day off. "My study times" sits below the calendar.
+  - **The plan updates on its own** whenever classes or the schedule change. Finished sessions always stay checked off.
 - **More ways to save or share** (link under the three buttons): share with a parent or advisor as a read-only Google Doc, or download a Google Doc, Google Sheet, Word, calendar, or spreadsheet file.
 - **Text and display (Aa button):** larger text, an easier-to-read font (Atkinson Hyperlegible), and high contrast. Saved on each device.
 - **Accessibility:** every page and pop-up passes automated WCAG 2.1 AA checks (axe-core). Labels are shown under the face ratings, everything works with a keyboard, and reduced-motion settings are respected.
