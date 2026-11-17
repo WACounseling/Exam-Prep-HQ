@@ -618,16 +618,9 @@ details.more > summary { cursor: pointer; font-weight: 700; color: var(--focus);
 .topic-details { font-size: var(--fs-xs); color: var(--muted); padding: 0 8px 4px; }
 .pick-list label > span { display: block; }
 
-/* Letter grade picker and semester projection */
+/* Letter grade picker */
 .grade-select { min-height: 44px; font-weight: 700; }
 .wc-grade .grade-select { text-align: center; padding: 8px; }
-.proj-box { background: var(--mist); border-radius: var(--r-md); padding: 10px 14px; }
-.proj-box[open] { padding-bottom: 14px; }
-.disclaimer { background: #fff4c9; border-left: 5px solid var(--yellow); border-radius: var(--r-sm); padding: 8px 12px; font-size: var(--fs-sm); margin: 10px 0; }
-.proj { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
-.proj div { background: var(--white); border-radius: var(--r-sm); padding: 8px; text-align: center; display: grid; }
-.proj b { font-size: 1.4rem; color: var(--navy); }
-.proj span { white-space: nowrap; }
 .class-body > div { min-width: 0; }
 .guide-files li { overflow-wrap: anywhere; word-break: break-word; }
 
@@ -723,7 +716,7 @@ html.hc .tab { color: #fff; }
   .tabs { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; padding-bottom: env(safe-area-inset-bottom); box-shadow: 0 -2px 10px rgba(0,0,0,.15); }
   .tabs-inner { justify-content: space-around; padding: 0; overflow: visible; }
   .tab { flex-direction: column; gap: 2px; padding: 8px 4px 9px; font-size: .72rem; border-bottom: 0; border-top: 4px solid transparent; flex: 1; justify-content: center; text-align: center; }
-  .tab span[aria-hidden] { font-size: 1.25rem; }
+  .tab .t-icon { font-size: 1.25rem; }
   .tab[aria-current="page"] { border-top-color: var(--yellow); background: rgba(255,255,255,.08); }
   body { padding-bottom: 76px; }
   body.in-setup { padding-bottom: 0; }
@@ -759,3 +752,157 @@ details.week > summary h2 { margin: 0; color: var(--navy); }
 .steps-list li { margin-bottom: 12px; }
 
 .missed-box { background: #fff8e1; border: 1px solid #f0d58a; border-radius: var(--r-md); padding: 12px 14px; margin-bottom: 14px; }
+
+/* ======================================================================
+   TABS: full names on wide screens, short names on phones
+   ====================================================================== */
+.t-short { display: none; }
+@media (max-width: 700px) { .t-long { display: none; } .t-short { display: inline; } }
+
+/* ======================================================================
+   SHORT SESSION CARDS (My Study Plan) and DETAILS SCREEN
+   ====================================================================== */
+.session.compact { align-items: center; padding: 8px 10px; }
+.s-open { display: grid; grid-template-columns: auto 1fr auto; grid-template-areas: "time title chev" "time topic chev"; column-gap: 12px; align-items: center;
+  width: 100%; text-align: left; background: none; border: 0; padding: 4px 2px; cursor: pointer; font: inherit; color: inherit; border-radius: 8px; }
+.s-open:hover { background: var(--tint); }
+.s-open .time { grid-area: time; min-width: 4.8em; }
+.s-open .s-title { grid-area: title; }
+.s-open .s-topic { grid-area: topic; font-weight: 500; color: var(--muted); }
+.s-open .chev { grid-area: chev; font-size: 1.6rem; color: var(--c); line-height: 1; }
+.s-title-btn { background: none; border: 0; padding: 0; font: inherit; font-weight: 700; color: inherit; cursor: pointer; text-align: left; text-decoration: underline; text-decoration-color: transparent; }
+.s-title-btn:hover { text-decoration-color: currentColor; }
+.late-tag { display: inline-block; background: #fff4c9; color: #7a5b00; border: 1px solid #e0b84a; border-radius: 999px; font-size: .72rem; font-weight: 800; padding: 0 7px; }
+.done-tag { display: inline-block; background: #e4f3ea; color: #1e6141; border-radius: 999px; font-size: .72rem; font-weight: 800; padding: 0 7px; }
+.details .f-head { border-radius: var(--r-lg) var(--r-lg) 0 0; }
+.d-when { font-weight: 700; }
+.d-use { margin: 0 0 10px; padding-left: 1.2em; }
+.d-actions { justify-content: flex-start; align-items: center; }
+@media (max-width: 560px) { .s-open { grid-template-areas: "time chev" "title chev" "topic chev"; grid-template-columns: 1fr auto; } }
+
+/* ======================================================================
+   MY WEEKLY SCHEDULE: week calendar
+   ====================================================================== */
+.week-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+.cal { background: var(--white); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 14px; }
+.cal-nav { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 6px; }
+.cal-title { text-align: center; display: grid; }
+.cal-title b { font-size: 1.25rem; color: var(--navy); }
+.cal-title span { font-size: var(--fs-sm); color: var(--muted); }
+.cal-arrow { font-size: 1.1rem; min-width: 44px; min-height: 44px; border: 2px solid var(--line); }
+.cal-arrow:disabled { opacity: .3; cursor: default; }
+.cal-key { display: flex; flex-wrap: wrap; gap: 14px; justify-content: center; margin-bottom: 10px; color: var(--muted); }
+.cal-key .k::before { content: ""; display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+.cal-key .ses::before { background: var(--red); }
+.cal-key .tut::before { background: var(--yellow); }
+.cal-key .busy::before { background: #c9ced3; }
+.cal-key .off::before { background: #cfe8d9; }
+.cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+.cal-day { background: var(--mist); border-radius: var(--r-sm); padding: 8px 6px; display: flex; flex-direction: column; gap: 5px; min-height: 180px; }
+.cal-day.today { background: #fff8e1; box-shadow: inset 0 0 0 2px var(--yellow); }
+.cal-day.past { opacity: .75; }
+.cal-head { font-size: var(--fs-sm); line-height: 1.2; }
+.cal-head span { color: var(--muted); }
+.today-tag { display: inline-block; background: var(--yellow); color: var(--navy) !important; border-radius: 999px; font-size: .68rem; font-weight: 800; padding: 0 6px; }
+.cal-items { display: flex; flex-direction: column; gap: 5px; flex: 1; }
+.cal-item { display: block; width: 100%; text-align: left; border: 0; border-radius: 6px; padding: 5px 6px; font: inherit; font-size: .78rem; line-height: 1.25; cursor: pointer; }
+.cal-item .ci-time { display: block; font-weight: 800; font-size: .72rem; }
+.cal-item.ses { background: var(--white); border-left: 5px solid var(--c); color: var(--ink); font-weight: 600; }
+.cal-item.ses.done { opacity: .6; text-decoration: line-through; }
+.cal-item.ses.late { box-shadow: inset 0 0 0 2px #e0b84a; }
+.cal-item.tut { background: #fff4c9; border-left: 5px solid var(--yellow); font-weight: 600; color: var(--ink); }
+.cal-item.tut.done { opacity: .7; }
+.cal-item.busy { background: #e6e9ec; color: #3a4652; }
+.cal-item.off { background: #e4f3ea; color: #1e6141; font-weight: 700; }
+.cal-item.static { cursor: default; }
+.cal-item:hover:not(.static) { filter: brightness(.96); outline: 2px solid var(--focus); }
+.cal-exam { background: var(--c); color: var(--white); border-radius: 6px; padding: 5px 6px; font-size: .78rem; font-weight: 800; }
+.cal-empty { font-size: .75rem; color: var(--muted); margin: 0; }
+.cal-add { border: 2px dashed #b6bec6; background: transparent; border-radius: 6px; padding: 4px; font: inherit; font-size: .78rem; font-weight: 700; color: var(--muted); cursor: pointer; }
+.cal-add:hover { border-color: var(--red); color: var(--red); }
+.check-line { display: flex; gap: 8px; align-items: center; font-weight: 600; }
+.check-line input { width: 20px; height: 20px; accent-color: var(--red); }
+@media (max-width: 900px) {
+  .cal-grid { grid-template-columns: 1fr; }
+  .cal-day { min-height: 0; display: grid; grid-template-columns: 74px 1fr; column-gap: 10px; align-items: start; }
+  .cal-day .cal-head { grid-row: 1 / span 2; }
+  .cal-day .cal-add { grid-column: 2; justify-self: start; padding: 4px 12px; }
+  .cal-item { font-size: .85rem; }
+  .cal-item .ci-time { display: inline; margin-right: 6px; }
+}
+@media (max-width: 700px) {
+  .tabs-inner { gap: 0; }
+  .tab { flex: 1 1 0; min-width: 0; white-space: normal; line-height: 1.1; font-size: .7rem; padding: 7px 2px 8px; }
+  .tab .t-short { overflow-wrap: anywhere; }
+  .tab .t-icon { font-size: 1.15rem; }
+  .tab .t-short { font-size: .7rem; font-weight: 700; }
+  .week-actions .btn { flex: 1 1 100%; justify-content: flex-start; }
+}
+.cal-day.past { opacity: 1; background: #f7f8f9; }
+.cal-day.past .cal-head b { color: var(--muted); }
+
+/* ======================================================================
+   UNDO in messages
+   ====================================================================== */
+.toast { display: flex; align-items: center; gap: 12px; }
+.toast-undo { background: var(--yellow); color: var(--navy); border: 0; border-radius: 999px; padding: 6px 14px; font: inherit; font-weight: 800; cursor: pointer; min-height: 36px; }
+
+/* ======================================================================
+   PRINTING inside the page (reliable on iPad)
+   ====================================================================== */
+#print-area { display: none; }
+@media print {
+  body.printing > *:not(#print-area) { display: none !important; }
+  body.printing #print-area { display: block !important; font-family: Montserrat, Arial, sans-serif; color: #0d2b46; }
+  body.printing { padding: 0 !important; background: #fff; }
+  #print-area h3 { break-after: avoid; }
+  #print-area tr { break-inside: avoid; }
+}
+
+/* ======================================================================
+   ADD A SESSION TODAY, READINESS, HELP
+   ====================================================================== */
+.add-today { margin-top: 16px; width: 100%; justify-content: center; }
+.ready { display: flex; flex-direction: column; gap: 3px; min-width: 120px; margin-right: 6px; }
+.ready-bar { display: block; height: 8px; border-radius: 999px; background: rgba(255,255,255,.8); box-shadow: inset 0 0 0 1px rgba(0,0,0,.12); overflow: hidden; }
+.ready-bar > span { display: block; height: 100%; background: var(--c); border-radius: 999px; }
+.ready .xs { color: var(--ink); font-weight: 600; }
+.trend { white-space: nowrap; }
+@media (max-width: 600px) { .ready { display: none; } }
+.help-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+.help-item { background: var(--white); border: 1px solid var(--line); border-radius: var(--r-md); padding: 16px 18px; }
+.help-item p { margin: 0 0 10px; }
+footer a { font-weight: 700; }
+
+/* ======================================================================
+   iPAD and other touch screens
+   ====================================================================== */
+html { -webkit-text-size-adjust: 100%; }
+input, select, textarea { font-size: max(16px, 1rem); }          /* stops iPad zooming in on fields */
+@media (pointer: coarse) {
+  .cal-item { padding: 8px 8px; font-size: .85rem; }
+  .cal-add { padding: 8px; }
+  .icon-btn { min-width: 44px; min-height: 44px; }
+  .conf button { min-width: 44px; min-height: 44px; }
+  .linkish { padding: 6px 0; }
+  .s-actions { gap: 18px; }
+}
+/* No "stuck" hover highlight after tapping on a touch screen */
+@media (hover: none) {
+  .s-open:hover { background: none; }
+  .cal-item:hover:not(.static) { outline: none; filter: none; }
+}
+/* Week calendar: list in iPad portrait, 7-day grid in iPad landscape */
+@media (min-width: 701px) and (max-width: 1000px) {
+  .cal-grid { grid-template-columns: 1fr; }
+  .cal-day { min-height: 0; display: grid; grid-template-columns: 110px 1fr; column-gap: 12px; align-items: start; }
+  .cal-day .cal-head { grid-row: 1 / span 2; }
+  .cal-day .cal-items { flex-direction: row; flex-wrap: wrap; }
+  .cal-day .cal-items .cal-item, .cal-day .cal-items .cal-exam { width: auto; flex: 0 1 220px; }
+  .cal-day .cal-add { grid-column: 2; justify-self: start; padding: 6px 14px; }
+}
+@media (min-width: 1001px) and (max-width: 1100px) { .cal-item { font-size: .76rem; } }
+/* Today: two columns from iPad portrait up */
+@media (min-width: 760px) and (max-width: 1000px) { .today-grid { grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); } }
+main:focus, main:focus-visible { outline: none; }
+@media print { @page { margin: 0.5in; } }

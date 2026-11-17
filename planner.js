@@ -390,5 +390,33 @@
     return { generatedAt: Date.now(), startDate, sessions: all, warnings, freeSlots: slots.filter(s => !s.task).length, totalSlots: slots.length };
   }
 
-  window.Planner = { generate, buildSlots, topicsFor };
+  // "Add a session today": one extra practice session, starting now, on the shakiest
+  // topic for the soonest exam (skipping anything already done or scheduled today).
+  function extraSession(state) {
+    const today = D.today();
+    const len = Number(state.prefs.sessionLen) || 30;
+    const usedToday = new Set((state.plan ? state.plan.sessions : []).filter(x => x.date === today).map(x => x.classId + "|" + x.topicId));
+    const cands = [];
+    CFG.EXAMS.filter(e => e.date > today).forEach(e => {
+      const days = D.diff(today, e.date);
+      topicsFor(state, e.id).forEach(t => {
+        if (usedToday.has(e.id + "|" + t.id)) return;
+        const conf = Number(t.conf) || Number(state.classes[e.id].confidence) || 3;
+        cands.push({ e, t, score: days + 3 * conf });
+      });
+    });
+    if (!cands.length) return null;
+    cands.sort((a, b) => a.score - b.score);
+    const { e, t } = cands[0];
+    const now = new Date();
+    const startMin = Math.ceil((now.getHours() * 60 + now.getMinutes()) / 5) * 5;
+    const task = { classId: e.id, topicId: t.id, baseId: t.baseId || t.id, topicText: t.text, resources: t.resources || [], kind: "quiz" };
+    return {
+      id: uid(), date: today, start: D.toTime(Math.min(startMin, 23 * 60)), end: D.toTime(Math.min(startMin + len, 23 * 60 + 59)),
+      classId: e.id, topicId: t.id, baseId: task.baseId, topicText: t.text, resources: task.resources,
+      kind: "quiz", extra: true, title: `${window.Store.className(e.id)}: extra practice`, tip: tipFor(task, state), done: false
+    };
+  }
+
+  window.Planner = { generate, buildSlots, topicsFor, extraSession };
 })();

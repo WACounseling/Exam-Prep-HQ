@@ -30,6 +30,13 @@ A study-planning website for Woodward Academy 7th and 8th graders. Students add 
   - **🔁 Make up missed sessions:** shows how many were missed and moves them to new times.
 - **Missed sessions** appear at the top of Today with **Do it now** and **Move to a new time** buttons.
 - **"Can't do it? Move it"** on every session asks "Later today" or "Another day," then finds the next open time.
+- **➕ Add a session today** (on Today): one tap adds a quick practice session, starting now, on the shakiest topic for the soonest exam.
+- **One-tap tutorial suggestions** on Today, for example "Science feels shaky. Add a tutorial?" with the next open school day already chosen.
+- **Undo:** right after marking something done, moving a session, removing a busy time, tutorial, day off, or topic, adding a session or tutorial, or loading a backup, the message at the bottom offers **Undo**.
+- **Readiness on My classes:** each class shows "6 of 15 done" with a bar, plus how the faces have changed since the first check-in (for example 😬 → 🙂). No grades or numbers.
+- **"How do I…?" help page** (Help button at the top, and in Tips): 15 quick answers, each with a button that does it.
+- **Print my exam week page:** one page with each exam's day, practice exam, and tutorials, the pacing plan, and night-before and exam-morning checklists. It's under the plan buttons, in "More ways to save or share," and on the night-before screen.
+- **Backup file:** "Save a backup file" and "Load a backup" (in "More ways to save or share" and Help) move a plan to another device without Google sign-in. Loading a backup can be undone.
 - **Five tabs:** Today, **My Study Plan**, **My Weekly Schedule**, My classes, and Tips. On phones, the tabs sit at the bottom of the screen, with short names ("Study plan," "Schedule").
   - **My Study Plan:** every session until exams, as short cards grouped by week. **Tap any session** to open its details: when it is, what to do (with read-aloud), the materials to use, why it's happening now, and **Start**, **Move it**, **Mark done**, and **Stuck? Ask my teacher** buttons.
   - **My Weekly Schedule:** a week calendar (with arrows through exam week) showing study sessions, tutorials, busy times, days off, and exams. Tap anything to see or change it. **+ Add** on any day adds a tutorial, a busy time (just that day or every week), or a day off. "My study times" sits below the calendar.
@@ -112,8 +119,6 @@ Everything you'll normally change is in `js/config.js`:
 - `EXAM_MINUTES`: standard exam length (currently 70).
 - `TUTORIAL_START` / `TUTORIAL_END`: tutorial time (currently 3:15 to 3:40 p.m.).
 - `GRADES`: the letter grade scale. Students only pick letters, and percentages are never shown. The lowest percentage for each letter is used only behind the scenes. **Check this against the official scale.**
-- `EXAM_WEIGHT`: how much the exam counts toward the semester grade (currently 20%).
-- `GRADE_PROJECTION`: set to `false` to hide the semester grade projection everywhere.
 - `DRIVE_FOLDER_NAME`: use a new name each semester so students get a fresh folder.
 - `SEMESTER_LABEL`
 
@@ -142,12 +147,10 @@ The header shows "WOODWARD ACADEMY" as text so no logo is recreated. To use the 
 
 In the `exam-prep-hq` folder, run `python3 -m http.server 8000` and open `http://localhost:8000`. To test Google sign-in locally, also add `http://localhost:8000` as an Authorized JavaScript origin.
 
-## Grades and the semester projection
+## Grades
 
 - **Letters only.** Students pick a letter grade from a list (A+ through F, or "Not sure"). They can't type a number, and no percentage is ever shown on screen, in printouts, or in calendar events. Number grades saved by an older version are converted to letters automatically.
-- **Projection (optional).** In each class on My classes, a folded section called "What could my semester grade be?" shows what the semester grade could be with an A, B, C, or D on the exam. It uses (80% × current grade) + (20% × exam grade), converted back to a letter using the `GRADES` scale.
-- **Disclaimer.** Every projection appears beside this note: "This is only a projection. It's based on the grade you entered today. It is not an official grade, and it doesn't guarantee any grade. Your teacher's gradebook is the only official grade."
-- **Approximate by design.** Because only letters are used, results are approximate, often within one plus or minus step.
+- **How grades are used:** only to decide how much study time each class gets. A lower grade adds sessions, and an A with high confidence needs fewer. There is no grade projection or prediction anywhere on the site.
 
 ## How the study guide reader works
 
@@ -175,3 +178,16 @@ Study instructions change with the kind of topic: grammar, vocabulary, figures o
 5. If there's extra time, the shakiest topics get quick reviews, but about 1 in 5 open slots stays free for downtime.
 6. MindPrint choices and extended time change the instructions inside each session.
 7. **Rebuild my plan** keeps finished sessions and reschedules anything missed.
+
+
+## iPad notes
+
+Exam Prep HQ is laid out and tested for iPad sizes, in both portrait and landscape:
+
+- **Portrait (768 to 834 pixels wide):** Today uses two columns, and My Weekly Schedule shows one row per day.
+- **Landscape (1024 pixels and wider):** My Weekly Schedule shows the full 7-day grid.
+- **Touch targets** are at least 44 pixels. Text fields don't make the iPad zoom in.
+- **Printing** happens inside the page, which works reliably in iPad Safari. Students can pick a printer, or tap Share to save a PDF.
+- **"Add to my calendar"** on an iPad offers to add every session to the iPad's Calendar app ("Add All"). Importing a file into Google Calendar requires a computer, so for Google Calendar on iPads, turn on Google sign-in and the site adds events directly.
+- **Read-aloud** uses the iPad's built-in voice.
+- **Testing:** layouts were checked with iPad screen sizes and touch input in a Chromium browser. Please do a final check on a real iPad in Safari before launch.

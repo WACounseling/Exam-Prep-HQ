@@ -4,7 +4,7 @@
 (function () {
   const CFG = window.PREP_CONFIG;
   // Demo mode (add ?demo to the address): a made-up student, stored separately, never synced.
-  const DEMO = new URLSearchParams(location.search).has("demo");
+  const DEMO = typeof location !== "undefined" && new URLSearchParams(location.search).has("demo");
   const LS_KEY = DEMO ? "examPrepHQ.demo" : "examPrepHQ.v1";
 
   /* ---------- Date helpers (all dates are local YYYY-MM-DD strings) ---------- */
@@ -180,13 +180,6 @@
     letterFor(num) {
       const g = CFG.GRADES.find(x => num >= x.min);
       return g ? g.letter : CFG.GRADES[CFG.GRADES.length - 1].letter;
-    },
-    // Semester grade projection: (1 - weight) x current + weight x exam. Letters in, letter out.
-    project(currentLetter, examLetter) {
-      const cur = Store.gradeNum(currentLetter), ex = Store.gradeNum(examLetter);
-      if (isNaN(cur) || isNaN(ex)) return "";
-      const w = CFG.EXAM_WEIGHT;
-      return Store.letterFor(cur * (1 - w) + ex * w);
     },
     examMinutes() {
       const a = Store.state.accom;
