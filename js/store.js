@@ -4,7 +4,7 @@
 (function () {
   const CFG = window.PREP_CONFIG;
   // Demo mode (add ?demo to the address): a made-up student, stored separately, never synced.
-  const DEMO = new URLSearchParams(location.search).has("demo");
+  const DEMO = typeof location !== "undefined" && new URLSearchParams(location.search).has("demo");
   const LS_KEY = DEMO ? "examPrepHQ.demo" : "examPrepHQ.v1";
 
   /* ---------- Date helpers (all dates are local YYYY-MM-DD strings) ---------- */
@@ -43,7 +43,7 @@
   function freshState() {
     const classes = {};
     CFG.EXAMS.forEach(e => {
-      classes[e.id] = { grade: "", confidence: 3, topics: [], guides: [], nickname: "", questions: "" };
+      classes[e.id] = { course: "", guideFrom: "", grade: "", confidence: 3, topics: [], guides: [], nickname: "", questions: "" };
     });
     return {
       version: 1,
@@ -53,6 +53,7 @@
       classes,
       busy: [],
       tutorials: [],          // { id, classId, date, start, end, done }
+      skips: [],              // times a student moved a session away from
       prefs: {
         startDate: D.today(),
         weekdayStart: "16:00", weekdayEnd: "20:30",
@@ -134,7 +135,33 @@
       Store.save({ now: true });
     },
     exam(id) { return CFG.EXAMS.find(e => e.id === id); },
+    // "Pre-Algebra EP" -> "Pre-Algebra", "Physical Science 8 HP" -> "Physical Science", "French 1 HP" -> "French".
+    shortCourse(name) {
+      return String(name || "").replace(/\s+(CP|EP|HP|TP)$/i, "").replace(/\s+[178]$/, "").trim();
+    },
+    // Courses for one exam, filtered by grade (names with 7 or 8 only show for that grade).
+    courseGroups(examId, gradeLevel) {
+      const other = gradeLevel === "7" ? "8" : "7";
+      return (CFG.COURSES && CFG.COURSES[examId] || []).map(g => ({
+        group: g.group, list: g.allGrades ? g.list.slice() : g.list.filter(c => !new RegExp(`\\b${other}\\b`).test(c))
+      })).filter(g => g.list.length);
+    },
+    guideFor(id) {
+      const c = Store.state.classes[id];
+      return c && c.course && window.GUIDES ? window.GUIDES[c.course] || null : null;
+    },
+    // Fill a class's topics from its course's preloaded guide.
+    applyGuide(id) {
+      const c = Store.state.classes[id], g = Store.guideFor(id);
+      if (!g) return false;
+      c.topics = (g.topics || []).map(t => ({ id: uid(), text: t.text, details: (t.details || []).slice(), resources: (t.resources || []).slice(), conf: Number(c.confidence) || 3 }));
+      c.guideFrom = c.course;
+      c.guideVersion = g.updated || "";
+      return true;
+    },
     className(id) {
+      const cls = Store.state.classes[id];
+      if (cls && cls.course) return Store.shortCourse(cls.course);
       if (id === "lang") {
         const p = Store.state.profile;
         if (p.langChoice === "Literature") return "Literature";
@@ -179,13 +206,6 @@
     letterFor(num) {
       const g = CFG.GRADES.find(x => num >= x.min);
       return g ? g.letter : CFG.GRADES[CFG.GRADES.length - 1].letter;
-    },
-    // Semester grade projection: (1 - weight) x current + weight x exam. Letters in, letter out.
-    project(currentLetter, examLetter) {
-      const cur = Store.gradeNum(currentLetter), ex = Store.gradeNum(examLetter);
-      if (isNaN(cur) || isNaN(ex)) return "";
-      const w = CFG.EXAM_WEIGHT;
-      return Store.letterFor(cur * (1 - w) + ex * w);
     },
     examMinutes() {
       const a = Store.state.accom;

@@ -4,9 +4,10 @@ A study-planning website for Woodward Academy 7th and 8th graders. Students add 
 
 **Built to be simple for students working on their own.** Input stays minimal (the 5-question setup, plus optional study guides). Everything else is one tap.
 
+- **Class levels and preloaded study guides:** in setup, students pick their class level for each exam (for example "English 8 HP" or "Pre-Algebra EP"). If that course's study guide has been loaded (see "Loading study guides" below), its topics, details, and "How to study" materials fill in automatically. Students only rate how they feel about each topic.
 - **Guided setup (about 5 minutes):** five short screens, one question each.
   1. Name and grade
-  2. Letter grade and a 😵 to 😎 face for each class
+  2. For each exam: class level, letter grade, and a 😵 to 😎 face
   3. What's already on their calendar
   4. When they like to study
   5. Extended time and MindPrint (both optional)
@@ -28,6 +29,8 @@ A study-planning website for Woodward Academy 7th and 8th graders. Students add 
   - **🖨️ Print my plan:** the whole schedule as a checklist.
   - **📅 Add to my calendar:** syncs directly to Google Calendar when Google sign-in is on. Otherwise it downloads a calendar file, with steps to import it into Google Calendar, Apple Calendar, or Outlook.
   - **🔁 Make up missed sessions:** shows how many were missed and moves them to new times.
+- **Step-by-step study sessions:** each session has a one-line overview, then numbered steps that name the exact parts of the study guide being covered and send students back to the teacher's materials. For example: "1. Open your review sheets pgs. 2-5 (also helpful: slideshows). 2. Read the rule for each: Participles, Gerunds, and Infinitives. 3. On a fresh page, redo the practice sentences…" Steps change with the subject and the round (build it, quiz yourself, mix and teach, quick review, practice exam). If a guide has a PDF link, sessions show **Open the study guide**.
+- **Quick day buttons** for repeating activities: Mon & Wed, Tue & Thu, Mon, Wed & Fri, or Every weekday, plus individual days. "Just once" adds a one-day activity.
 - **Missed sessions** appear at the top of Today with **Do it now** and **Move to a new time** buttons.
 - **"Can't do it? Move it"** on every session asks "Later today" or "Another day," then finds the next open time.
 - **➕ Add a session today** (on Today): one tap adds a quick practice session, starting now, on the shakiest topic for the soonest exam.
@@ -113,7 +116,7 @@ Sign-in lasts about an hour at a time. If it expires, a **Reconnect** button app
 
 ## 3. Update it each semester
 
-Everything you'll normally change is in `js/config.js`:
+Everything you'll normally change is in `js/config.js`, plus `js/guides.js` (made with the study guide manager):
 
 - `EXAMS`: names, dates (`YYYY-MM-DD`), colors, and icons.
 - `EXAM_MINUTES`: standard exam length (currently 70).
@@ -121,6 +124,7 @@ Everything you'll normally change is in `js/config.js`:
 - `GRADES`: the letter grade scale. Students only pick letters, and percentages are never shown. The lowest percentage for each letter is used only behind the scenes. **Check this against the official scale.**
 - `DRIVE_FOLDER_NAME`: use a new name each semester so students get a fresh folder.
 - `SEMESTER_LABEL`
+- `COURSES`: the class levels students can pick for each exam.
 
 All reading content (home page steps, tips, tutorial guide, myths, MindPrint skill tips and strategy advice, extended time text, default topics). Keep additions short: students read two sentences far more often than ten is in `js/content.js` and can be edited without touching the app code.
 
@@ -146,6 +150,26 @@ The header shows "WOODWARD ACADEMY" as text so no logo is recreated. To use the 
 ## 6. Testing on your own computer
 
 In the `exam-prep-hq` folder, run `python3 -m http.server 8000` and open `http://localhost:8000`. To test Google sign-in locally, also add `http://localhost:8000` as an Authorized JavaScript origin.
+
+## Loading study guides (staff)
+
+Students pick their class level, not their teacher. Each course's exam review guide only needs to be loaded once.
+
+1. Open **admin.html** on your site (for example `https://YOUR-USERNAME.github.io/Exam-Prep-HQ/admin.html`). Students never see a link to it.
+2. Under **1. Courses**, tap **Add** next to a course (or **Edit** to update one).
+3. Under **2. Add or update a guide:**
+   - Check **every class that uses the same guide** (for example English 8 CP and English 8 EP).
+   - **Upload the PDF or Word file**, or paste its text. The reader finds the topics, what each covers, and the "How to study" list. Check them and fix anything that's off: rename, reorder, add, or remove topics. Put one item per line in each box.
+   - Optional: **Exam time** and **What to bring** appear on that course's exam-day screen, night-before checklist, and exam-week page. **PDF link** adds an "Open the study guide" button to sessions. Upload the PDF to a `guides` folder in the repository with that exact name.
+   - Click **Save this guide**.
+4. Repeat for other courses. Your work is saved in that browser, so you can stop and continue later.
+5. Under **3. Put it on the site**, click **Download guides.js**. On GitHub, replace `js/guides.js` with it and commit.
+
+Within a couple of minutes, students who picked those courses get the topics automatically, even if they set up their plan earlier. Their plan updates on its own, and they see "New study guide loaded." The site always fetches the newest guides.js, so old saved copies don't get in the way. Students who already added their own topics keep them, and see an option to switch to the teacher's guide.
+
+**Tips for best results:** guides that start with a summary table ("Sections on the Exam | Specifics | How to study") read most accurately, and the "How to study" column becomes the page references and materials in every session. The Lee 8th Honors English packet is preloaded as **English 8 HP** as an example.
+
+**The course list** lives in `COURSES` in `js/config.js`. Math and World Languages show every course to every student. English, Literature, Science, and Social Studies show only courses for the student's grade (based on the 7 or 8 in the course name). To change a list next year, edit those names. Guide entries are matched by exact course name.
 
 ## Grades
 

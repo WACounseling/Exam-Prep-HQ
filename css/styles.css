@@ -618,16 +618,9 @@ details.more > summary { cursor: pointer; font-weight: 700; color: var(--focus);
 .topic-details { font-size: var(--fs-xs); color: var(--muted); padding: 0 8px 4px; }
 .pick-list label > span { display: block; }
 
-/* Letter grade picker and semester projection */
+/* Letter grade picker */
 .grade-select { min-height: 44px; font-weight: 700; }
 .wc-grade .grade-select { text-align: center; padding: 8px; }
-.proj-box { background: var(--mist); border-radius: var(--r-md); padding: 10px 14px; }
-.proj-box[open] { padding-bottom: 14px; }
-.disclaimer { background: #fff4c9; border-left: 5px solid var(--yellow); border-radius: var(--r-sm); padding: 8px 12px; font-size: var(--fs-sm); margin: 10px 0; }
-.proj { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
-.proj div { background: var(--white); border-radius: var(--r-sm); padding: 8px; text-align: center; display: grid; }
-.proj b { font-size: 1.4rem; color: var(--navy); }
-.proj span { white-space: nowrap; }
 .class-body > div { min-width: 0; }
 .guide-files li { overflow-wrap: anywhere; word-break: break-word; }
 
@@ -847,3 +840,98 @@ details.week > summary h2 { margin: 0; color: var(--navy); }
 }
 .cal-day.past { opacity: 1; background: #f7f8f9; }
 .cal-day.past .cal-head b { color: var(--muted); }
+
+/* ======================================================================
+   UNDO in messages
+   ====================================================================== */
+.toast { display: flex; align-items: center; gap: 12px; }
+.toast-undo { background: var(--yellow); color: var(--navy); border: 0; border-radius: 999px; padding: 6px 14px; font: inherit; font-weight: 800; cursor: pointer; min-height: 36px; }
+
+/* ======================================================================
+   PRINTING inside the page (reliable on iPad)
+   ====================================================================== */
+#print-area { display: none; }
+@media print {
+  body.printing > *:not(#print-area) { display: none !important; }
+  body.printing #print-area { display: block !important; font-family: Montserrat, Arial, sans-serif; color: #0d2b46; }
+  body.printing { padding: 0 !important; background: #fff; }
+  #print-area h3 { break-after: avoid; }
+  #print-area tr { break-inside: avoid; }
+}
+
+/* ======================================================================
+   ADD A SESSION TODAY, READINESS, HELP
+   ====================================================================== */
+.add-today { margin-top: 16px; width: 100%; justify-content: center; }
+.ready { display: flex; flex-direction: column; gap: 3px; min-width: 120px; margin-right: 6px; }
+.ready-bar { display: block; height: 8px; border-radius: 999px; background: rgba(255,255,255,.8); box-shadow: inset 0 0 0 1px rgba(0,0,0,.12); overflow: hidden; }
+.ready-bar > span { display: block; height: 100%; background: var(--c); border-radius: 999px; }
+.ready .xs { color: var(--ink); font-weight: 600; }
+.trend { white-space: nowrap; }
+@media (max-width: 600px) { .ready { display: none; } }
+.help-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+.help-item { background: var(--white); border: 1px solid var(--line); border-radius: var(--r-md); padding: 16px 18px; }
+.help-item p { margin: 0 0 10px; }
+footer a { font-weight: 700; }
+
+/* ======================================================================
+   iPAD and other touch screens
+   ====================================================================== */
+html { -webkit-text-size-adjust: 100%; }
+input, select, textarea { font-size: max(16px, 1rem); }          /* stops iPad zooming in on fields */
+@media (pointer: coarse) {
+  .cal-item { padding: 8px 8px; font-size: .85rem; }
+  .cal-add { padding: 8px; }
+  .icon-btn { min-width: 44px; min-height: 44px; }
+  .conf button { min-width: 44px; min-height: 44px; }
+  .linkish { padding: 6px 0; }
+  .s-actions { gap: 18px; }
+}
+/* No "stuck" hover highlight after tapping on a touch screen */
+@media (hover: none) {
+  .s-open:hover { background: none; }
+  .cal-item:hover:not(.static) { outline: none; filter: none; }
+}
+/* Week calendar: list in iPad portrait, 7-day grid in iPad landscape */
+@media (min-width: 701px) and (max-width: 1000px) {
+  .cal-grid { grid-template-columns: 1fr; }
+  .cal-day { min-height: 0; display: grid; grid-template-columns: 110px 1fr; column-gap: 12px; align-items: start; }
+  .cal-day .cal-head { grid-row: 1 / span 2; }
+  .cal-day .cal-items { flex-direction: row; flex-wrap: wrap; }
+  .cal-day .cal-items .cal-item, .cal-day .cal-items .cal-exam { width: auto; flex: 0 1 220px; }
+  .cal-day .cal-add { grid-column: 2; justify-self: start; padding: 6px 14px; }
+}
+@media (min-width: 1001px) and (max-width: 1100px) { .cal-item { font-size: .76rem; } }
+/* Today: two columns from iPad portrait up */
+@media (min-width: 760px) and (max-width: 1000px) { .today-grid { grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); } }
+main:focus, main:focus-visible { outline: none; }
+@media print { @page { margin: 0.5in; } }
+
+/* Setup step 2: class, grade, and feeling for each exam */
+.wiz-class { grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr) 96px; grid-template-areas: "name course grade" "conf conf conf" "guide guide guide"; row-gap: 8px; }
+.wiz-class .wc-name { grid-area: name; }
+.wiz-class .wc-course { grid-area: course; }
+.wiz-class .wc-grade { grid-area: grade; }
+.wiz-class .conf { grid-area: conf; }
+.wiz-class .wc-guide { grid-area: guide; font-size: var(--fs-sm); font-weight: 700; color: #1e6141; }
+.course-select { min-height: 44px; font-weight: 600; }
+@media (max-width: 600px) {
+  .wiz-class { grid-template-columns: minmax(0, 1fr) 90px; grid-template-areas: "name name" "course grade" "conf conf" "guide guide"; }
+}
+.guide-ok { font-size: var(--fs-sm); font-weight: 700; color: #1e6141; margin: 6px 0 0; }
+.guide-none { margin: 6px 0 0; }
+
+/* Overview + numbered steps */
+.s-overview { margin: 4px 0 6px; font-weight: 600; }
+.s-steps { margin: 0 0 6px; padding-left: 1.4em; }
+.s-steps li { margin-bottom: 4px; padding-left: 2px; }
+.s-steps.compact { font-size: var(--fs-sm); }
+.s-extra { font-size: var(--fs-sm); color: var(--muted); margin: 4px 0 6px; }
+.f-task .s-steps { text-align: left; }
+.guide-btn { margin-top: 6px; }
+
+/* Quick day buttons */
+.quick-days { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.quick-days .chip[aria-pressed="true"] { background: var(--navy); color: var(--white); border-color: var(--navy); }
+.wiz-class .wc-guide.pending { color: var(--muted); font-weight: 600; }
+@media (max-width: 1000px) { .account .sync-text { display: none; } .account .sync::before { margin-right: 2px; } }

@@ -40,6 +40,8 @@
 
   <script src="js/config.js"></script>
   <script src="js/content.js"></script>
+  <!-- Always load the newest study guides (skips old saved copies in the browser) -->
+  <script>document.write('<script src="js/guides.js?v=' + Date.now() + '"><\/script>');</script>
   <script src="js/store.js"></script>
   <script src="js/planner.js"></script>
   <script src="js/drive.js"></script>

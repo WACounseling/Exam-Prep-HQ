@@ -22,9 +22,24 @@ window.PREP_CONFIG = {
   TUTORIAL_START: "15:15",
   TUTORIAL_END: "15:40",
 
+  // Course choices for each exam. Students pick their class level, not their teacher.
+  // Groups marked allGrades show every course to every student. In other groups, courses
+  // with "7" or "8" in the name only show for that grade.
+  // The Dec. 18 exam is World Language OR Literature, so both groups are listed there.
+  COURSES: {
+    english: [{ group: "English", list: ["English 7 CP", "English 7 EP", "English 7 HP", "English 7 TP", "English 8 CP", "English 8 EP", "English 8 HP", "English 8 TP"] }],
+    science: [{ group: "Science", list: ["Science 7 CP", "Science 7 EP", "Science 7 HP", "Science 7 TP", "Physical Science 8 CP", "Physical Science 8 EP", "Physical Science 8 HP", "Physical Science 8 TP"] }],
+    social: [{ group: "Social Studies", list: ["Social Studies 7 CP", "Social Studies 7 EP", "Social Studies 7 HP", "Social Studies 7 TP", "U.S. History 8 CP", "U.S. History 8 EP", "U.S. History 8 TP", "Civics/Economics 8 HP"] }],
+    math: [{ group: "Mathematics", allGrades: true, list: ["Pre-Algebra CP", "Pre-Algebra EP", "Pre-Algebra HP", "Pre-Algebra TP", "Algebra CP", "Algebra EP", "Algebra HP", "Algebra TP", "Fundamentals of Algebra TP", "Geometry 8 HP"] }],
+    lang: [
+      { group: "Literature", list: ["Literature 7 EP", "Literature 7 TP", "Literature 8 CP", "Literature 8 EP", "Literature 8 HP", "Literature 8 TP"] },
+      { group: "World Languages", allGrades: true, list: ["French 1 HP", "French 7 EP", "French 8 EP", "French 8 HP", "Spanish 1 HP", "Spanish 7 EP", "Spanish 8 EP", "Spanish 8 HP"] }
+    ]
+  },
+
   // Letter grades. Students only ever pick a letter; percentages are never shown.
-  // "min" is the lowest percentage for each letter and is used only behind the scenes
-  // to plan study time and to project semester grades. Change it to match the official scale.
+  // "min" is the lowest percentage for each letter. It's used only behind the scenes
+  // to decide how much study time each class gets. Change it to match the official scale.
   GRADES: [
     { letter: "A+", min: 97 }, { letter: "A", min: 93 }, { letter: "A-", min: 90 },
     { letter: "B+", min: 87 }, { letter: "B", min: 83 }, { letter: "B-", min: 80 },
@@ -32,13 +47,6 @@ window.PREP_CONFIG = {
     { letter: "D+", min: 67 }, { letter: "D", min: 63 }, { letter: "D-", min: 60 },
     { letter: "F", min: 0 }
   ],
-
-  // Semester exams count for this share of the semester grade.
-  EXAM_WEIGHT: 0.20,
-
-  // Show the optional "What could my semester grade be?" projection on My classes.
-  // Set to false to hide it everywhere.
-  GRADE_PROJECTION: true,
 
   // 4) Exam length in minutes (standard time).
   EXAM_MINUTES: 70,

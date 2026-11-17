@@ -64,7 +64,8 @@ window.CONTENT = {
         "After each exam: take a real break before studying for the next one"
       ]
     },
-    { id: "myths", emoji: "🤔", title: "Myth or fact?", blurb: "Tap cards to test what you know.", special: true }
+    { id: "myths", emoji: "🤔", title: "Myth or fact?", blurb: "Tap cards to test what you know.", special: true },
+    { id: "help", emoji: "❓", title: "How do I…?", blurb: "Quick answers about using Exam Prep HQ.", special: true }
   ],
 
   /* ---------- Tutorials page ---------- */

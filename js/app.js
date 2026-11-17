@@ -12,6 +12,7 @@
   const { D, uid } = S;
   const st = () => S.state;
 
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const $ = (sel, root = document) => root.querySelector(sel);
   const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
   const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -38,7 +39,7 @@
     { start: "10:00", end: "17:00", label: "Either one", sub: "10 a.m. to 5 p.m." }
   ];
 
-  const ui = { weekOffset: 0, addDate: "", addMode: "", addFixedMode: false, dayChecks: {}, tutClass: null, openProj: null, busyType: "weekly", busyLabel: "", busyOpen: false, openClass: null, showPast: false, flipped: {}, examChecks: {}, mpEdit: false, mpAll: false, sync: "local" };
+  const ui = { weekOffset: 0, addDate: "", addMode: "", addFixedMode: false, dayChecks: {}, tutClass: null, busyType: "weekly", busyLabel: "", busyOpen: false, openClass: null, showPast: false, flipped: {}, examChecks: {}, mpEdit: false, mpAll: false, sync: "local" };
 
   const BADGES = [
     { id: "plan", e: "🗺️", name: "Plan made", test: s => !!s.plan },
@@ -83,12 +84,28 @@
   }
 
   let toastTimer;
-  function toast(msg) {
+  let undoFn = null;
+  function toast(msg, onUndo) {
     const t = $("#toast");
-    t.textContent = msg;
+    undoFn = onUndo || null;
+    t.innerHTML = `<span>${esc(msg)}</span>${onUndo ? ' <button class="toast-undo" data-act="undo">Undo</button>' : ""}`;
     t.classList.add("show");
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => t.classList.remove("show"), 3200);
+    toastTimer = setTimeout(() => { t.classList.remove("show"); undoFn = null; }, onUndo ? 7000 : 3200);
+  }
+
+  // Run a change that can be undone: snapshot first, then show "Undo" in the message.
+  function undoable(msg, fn) {
+    const snap = JSON.stringify(st());
+    fn();
+    toast(msg, () => {
+      clearTimeout(autoTimer);
+      S.replace(JSON.parse(snap));
+      S.save({ now: true });
+      closeModal();
+      render();
+      toast("Undone.");
+    });
   }
 
   function confetti() {
@@ -146,9 +163,14 @@
     const s = st();
     const today = D.today();
     const weekdayFrom = n => { let d = D.addDays(today, n); while (D.isWeekend(d)) d = D.addDays(d, 1); return d; };
-    s.profile = { name: "Maya", gradeLevel: "8", langChoice: "World Language", langName: "Spanish" };
+    s.profile = { name: "Maya", gradeLevel: "8", langChoice: "World Language", langName: "" };
+    Object.assign(s.classes.english, { course: "English 8 HP" });
+    Object.assign(s.classes.math, { course: "Algebra EP" });
+    Object.assign(s.classes.science, { course: "Physical Science 8 EP" });
+    Object.assign(s.classes.social, { course: "U.S. History 8 EP" });
+    Object.assign(s.classes.lang, { course: "Spanish 8 EP" });
     const t = (text, conf, details = [], resources = []) => ({ id: uid(), text, conf, details, resources });
-    Object.assign(s.classes.english, { grade: "A-", confidence: 4, topics: [
+    Object.assign(s.classes.english, { grade: "A-", confidence: 4, guideFrom: "English 8 HP", topics: [
       t("Grammar", 3, ["Participles", "Gerunds", "Infinitives", "Commas", "Semicolons", "Active/Passive Voice", "Fragments/Run-ons/Comma Splice"], ["Review sheets pgs. 2-5", "Practice sheets in workbook"]),
       t("Vocabulary", 4, ["Vocabulary from Literature"], ["Pretest pgs. 6-7", "Vocabulary lists"]),
       t("Literature", 3, ["Shakespeare/The Globe Theater", "The Taming of the Shrew", "“Aucassin and Nicolette”", "“Cupid and Psyche”"], ["Review sheets pgs. 8-11"]),
@@ -178,10 +200,10 @@
   function renderBrand() {
     $("#brand").innerHTML = CFG.LOGO_URL
       ? `<img src="${esc(CFG.LOGO_URL)}" alt="${esc(CFG.SCHOOL_NAME)}"><span class="brand-text"><span class="brand-app">Exam Prep HQ</span></span>`
-      : `<span class="brand-text"><span class="brand-school">${esc(CFG.SCHOOL_NAME.toUpperCase())}</span><span class="brand-app">Exam Prep HQ</span></span>`;
+      : `<span class="brand-text"><span class="brand-school">${esc(`${CFG.SCHOOL_NAME} ${CFG.DIVISION}`.toUpperCase())}</span><span class="brand-app">Exam Prep HQ</span></span>`;
   }
 
-  const startOverBtn = `<button class="btn small start-over" data-act="display" aria-label="Text and display settings"><span aria-hidden="true">Aa</span></button><button class="btn small start-over" data-act="start-over" aria-label="Start over"><span aria-hidden="true">↺</span><span class="so-text">Start over</span></button>`;
+  const startOverBtn = `<a class="btn small start-over" href="#tips/help" aria-label="Help: how do I…?"><span aria-hidden="true">?</span><span class="so-text">Help</span></a><button class="btn small start-over" data-act="display" aria-label="Text and display settings"><span aria-hidden="true">Aa</span></button><button class="btn small start-over" data-act="start-over" aria-label="Start over"><span aria-hidden="true">↺</span><span class="so-text">Start over</span></button>`;
 
   function renderAccount() {
     const a = $("#account");
@@ -225,6 +247,27 @@
   }
   const speakBtn = text => ("speechSynthesis" in window) ? `<button type="button" class="icon-btn speak" data-act="speak" data-text="${esc(text)}" aria-label="Read aloud">🔊</button>` : "";
 
+  // Pick your class level (filtered by grade). Choosing a course with a preloaded guide fills in its topics.
+  function coursePicker(id, small) {
+    const s = st(), c = s.classes[id];
+    const groups = S.courseGroups(id, s.profile.gradeLevel);
+    const opt = name => `<option value="${esc(name)}" ${c.course === name ? "selected" : ""}>${esc(name)}${window.GUIDES && window.GUIDES[name] ? " ✓" : ""}</option>`;
+    return `<label class="${small ? "sr-only" : ""}" for="course-${id}">${small ? `${esc(S.exam(id).name)} class` : "My class"}</label>
+      <select id="course-${id}" class="course-select" data-course="${id}">
+        <option value="" ${c.course ? "" : "selected"}>Pick your class</option>
+        ${c.course && !groups.some(g => g.list.includes(c.course)) ? opt(c.course) : ""}
+        ${groups.length > 1 ? groups.map(g => `<optgroup label="${esc(g.group)}">${g.list.map(opt).join("")}</optgroup>`).join("") : (groups[0] ? groups[0].list.map(opt).join("") : "")}
+      </select>`;
+  }
+
+  function guideStatus(id) {
+    const c = st().classes[id], g = S.guideFor(id);
+    if (!c.course) return "";
+    if (g && c.guideFrom === c.course) return `<p class="guide-ok">✓ Study guide loaded${g.file ? ` · <a href="${esc(g.file)}" target="_blank" rel="noopener">Open the study guide</a>` : ""}</p>`;
+    if (g) return `<p class="guide-ok"><button class="linkish small" data-act="use-guide" data-class="${id}">Use the ${esc(c.course)} study guide</button></p>`;
+    return `<p class="xs muted guide-none">The ${esc(c.course)} study guide isn't loaded yet. It will appear here automatically when it's added, or you can upload it yourself below.</p>`;
+  }
+
   // Letter grades only: a dropdown, so a number can never be entered.
   function gradePicker(id, value, label, small) {
     return `<label class="${small ? "sr-only" : ""}" for="g-${id}">${label}</label>
@@ -232,24 +275,6 @@
         <option value="" ${value ? "" : "selected"}>${small ? "Grade" : "Not sure"}</option>
         ${S.letters().map(l => `<option value="${l}" ${value === l ? "selected" : ""}>${l}</option>`).join("")}
       </select>`;
-  }
-
-  // Optional, folded-away projection. Letters only, always with the disclaimer.
-  function projection(e) {
-    if (!CFG.GRADE_PROJECTION) return "";
-    const c = st().classes[e.id];
-    const pct = Math.round(CFG.EXAM_WEIGHT * 100);
-    const examLetters = ["A", "B", "C", "D"];
-    const body = c.grade
-      ? `<p class="small" style="margin:0 0 8px">Your grade now: <b>${esc(c.grade)}</b>. If you get this on the exam, your semester grade could be about:</p>
-         <div class="proj">${examLetters.map(x => `<div><span class="xs muted">Exam ${x}</span><b>${esc(S.project(c.grade, x))}</b></div>`).join("")}</div>
-         <p class="xs muted" style="margin:8px 0 0">Your work all semester counts for ${100 - pct}%. The exam counts for ${pct}%.</p>`
-      : `<p class="small muted" style="margin:0">Pick your current grade above to see this.</p>`;
-    return `<details class="more proj-box" ${ui.openProj === e.id ? "open" : ""} data-proj="${e.id}">
-      <summary class="small">What could my semester grade be?</summary>
-      <div class="disclaimer" role="note"><b>This is only a projection.</b> It's based on the grade you entered today. It is not an official grade, and it doesn't guarantee any grade. Your teacher's gradebook is the only official grade.</div>
-      ${body}
-    </details>`;
   }
 
   function gates(small) {
@@ -265,6 +290,18 @@
         <div class="when">${D.pretty(e.date, false)}</div>
       </div>`;
     }).join("")}</div>`;
+  }
+
+  // Overview + numbered steps (falls back to the older single-paragraph tip).
+  function stepsHTML(x, opts = {}) {
+    const g = S.guideFor(x.classId);
+    const c = st().classes[x.classId];
+    const guideBtn = g && g.file && c && c.guideFrom === c.course ? `<a class="btn small ghost guide-btn" href="${esc(g.file)}" target="_blank" rel="noopener">📄 Open the study guide</a>` : "";
+    if (!x.steps || !x.steps.length) return `<p class="s-tip">${esc(x.tip)} ${speakBtn(x.tip)}</p>${guideBtn}`;
+    return `<p class="s-overview">${esc(x.overview)} ${speakBtn(x.tip)}</p>
+      <ol class="s-steps ${opts.compact ? "compact" : ""}">${x.steps.map(t => `<li>${esc(t)}</li>`).join("")}</ol>
+      ${x.extra ? `<p class="s-extra"><b>Tip:</b> ${esc(x.extra)}</p>` : ""}
+      ${guideBtn}`;
   }
 
   // Short card for lists (My Study Plan, calendar): tap to open details.
@@ -305,10 +342,10 @@
         </div>
         <div class="modal-body">
           <p class="d-when">${late ? '<span class="late-tag">Missed</span> ' : ""}${x.done ? '<span class="done-tag">✓ Done</span> ' : ""}${D.pretty(x.date)}, ${D.clock(x.start)} to ${D.clock(x.end)}</p>
-          <h3 class="h4">What to do ${speakBtn(x.tip)}</h3>
-          <p>${esc(x.tip)}</p>
-          ${res.length ? `<h3 class="h4">Use</h3><ul class="d-use">${res.map(r => `<li>${esc(r)}</li>`).join("")}</ul>` : ""}
-          <p class="small muted">${esc(ROUND[x.kind] || "")}</p>
+          <h3 class="h4">What to do</h3>
+          ${stepsHTML(x)}
+          ${res.length ? `<h3 class="h4" style="margin-top:12px">From your study guide</h3><ul class="d-use">${res.map(r => `<li>${esc(r)}</li>`).join("")}</ul>` : ""}
+          ${!x.steps ? `<p class="small muted">${esc(ROUND[x.kind] || "")}</p>` : ""}
         </div>
         <div class="modal-foot d-actions">
           ${!x.done ? `<button class="btn" data-act="details-start" data-id="${x.id}">▶ ${late ? "Do it now" : "Start"}</button>
@@ -329,8 +366,7 @@
         <div class="time">${D.clock(x.start)} to ${D.clock(x.end)}</div>
         <button class="s-title s-title-btn" data-act="details" data-id="${x.id}">${esc(x.title)}</button>
         <div class="s-topic">${esc(x.topicText)}</div>
-        <p class="s-tip">${esc(x.tip)} ${speakBtn(`${x.title}. ${x.topicText}. ${x.tip}`)}</p>
-        ${res.length ? `<p class="s-use"><b>Use:</b> ${esc(res.join("; "))}</p>` : ""}
+        ${stepsHTML(x, { compact: true })}
         ${!x.done ? `<div class="s-actions">
           ${startable || opts.big ? `<button class="btn small start-btn" data-act="focus" data-id="${x.id}">▶ ${late ? "Do it now" : "Start"}</button>` : ""}
           <button class="linkish small" data-act="move-session" data-id="${x.id}">${late ? "Move to a new time" : "Can't do it? Move it"}</button>
@@ -434,8 +470,7 @@
       body = `
         <p class="f-label">${esc(step.label)}</p>
         <div class="f-ring" style="--p:0"><span class="f-time" role="timer" aria-live="off">${mmss(focus.left)}</span></div>
-        <div class="f-task"><p><b>What to do:</b> ${esc(x.tip)} ${speakBtn(x.tip)}</p>
-          ${res.length ? `<p class="s-use"><b>Use:</b> ${esc(res.join("; "))}</p>` : ""}</div>
+        <div class="f-task">${stepsHTML(x)}</div>
         <div class="btn-row f-actions">
           <button class="btn ghost" data-act="focus-pause">${focus.paused ? "▶ Resume" : "⏸ Pause"}</button>
           <button class="btn" data-act="focus-next">I'm done</button>
@@ -481,7 +516,7 @@
     let changed = false;
     const cls = s.classes[x.classId];
     const topic = cls && cls.topics.find(t => t.id === x.baseId);
-    if (topic && focus.picked && Number(topic.conf) !== focus.picked) { topic.conf = focus.picked; changed = true; }
+    if (topic && focus.picked && Number(topic.conf) !== focus.picked) { if (!topic.firstConf) topic.firstConf = Number(topic.conf); topic.conf = focus.picked; changed = true; }
     save();
     if (changed) { rebuildQuiet(); toast("Got it. Your plan adjusted to how that topic feels."); }
     else toast("Session done. Nice work.");
@@ -572,6 +607,8 @@
           ${tutsToday.map(tutorialPill).join("")}
           ${missedHTML}
           ${todayBody}
+          ${CFG.EXAMS.some(e => e.date > today) ? `<button class="btn ghost add-today" data-act="add-today">➕ Add a session today</button>
+          <p class="xs muted" style="margin:6px 0 0">Have some time? Get one more quick practice session on your shakiest topic.</p>` : ""}
         </section>
 
         <div class="stack">
@@ -597,7 +634,7 @@
       <ol class="tour-list">
         <li><b>Tap ▶ Start</b> on a session. You get a timer, clear steps, and a break.</li>
         <li><b>Tap a face when you finish.</b> Your plan adjusts to how each topic feels.</li>
-        <li><b>Print it, add it to your calendar, or make up a missed session</b> with the buttons on Today and My plan.</li>
+        <li><b>Print it, add it to your calendar, or make up a missed session</b> with the buttons on Today and My Study Plan. Not sure how to do something? Tap <b>Help</b> at the top.</li>
       </ol>
       <button class="btn small" data-act="tour-done">Got it</button>
     </section>`;
@@ -627,7 +664,7 @@
     let html = "";
     if (examToday) {
       html += `<section class="panel day-card" style="${colorVars(examToday.id)}" aria-labelledby="ed-h">
-        <h2 id="ed-h">⭐ ${esc(S.className(examToday.id))} exam today</h2>
+        <h2 id="ed-h">⭐ ${esc(S.className(examToday.id))} exam today${S.guideFor(examToday.id) && S.guideFor(examToday.id).examTime ? `, ${esc(S.guideFor(examToday.id).examTime)}` : ""}</h2>
         <p>You've prepared for this. A calm start helps.</p>
         ${list("morning-" + examToday.id, ["Eat breakfast", "Bring your supplies, water, and a snack", "Know which room you're in", "One slow breath: in for 4, out for 6"])}
         <p class="small"><b>Your pacing plan for ${mins} minutes${extra ? " (with your extended time)" : ""}:</b> look it over for ${preview} minutes, answer for ${answer}, check for ${check}. Around minute ${half}, you should be about halfway.${extra ? " Use all of your time." : ""}</p>
@@ -638,11 +675,60 @@
       html += `<section class="panel day-card" style="${colorVars(examTomorrow.id)}" aria-labelledby="nb-h">
         <h2 id="nb-h">🌙 ${esc(S.className(examTomorrow.id))} exam tomorrow</h2>
         <p>Tonight is for a light review and a good night's sleep, not cramming.</p>
-        ${list("night-" + examTomorrow.id, ["Do tonight's practice exam session", "Pack your supplies (pens, pencils, highlighter, calculator if allowed), water, and a snack", "Light review only, nothing new", "Screens off early and lights out on time"])}
+        ${list("night-" + examTomorrow.id, ["Do tonight's practice exam session", (S.guideFor(examTomorrow.id) && S.guideFor(examTomorrow.id).bring) ? `Pack what your teacher asked for: ${esc(S.guideFor(examTomorrow.id).bring)}. Add water and a snack.` : "Pack your supplies (pens, pencils, highlighter, calculator if allowed), water, and a snack", "Light review only, nothing new", "Screens off early and lights out on time"])}
+        ${S.guideFor(examTomorrow.id) && S.guideFor(examTomorrow.id).examTime ? `<p class="small">Exam time: <b>${esc(S.guideFor(examTomorrow.id).examTime)}</b></p>` : ""}
         ${extra ? `<p class="small">Remember: you have <b>${mins} minutes</b>. Plan to use all of them.</p>` : ""}
+        <button class="btn small ghost" data-act="exp-examweek">⭐ Print my exam week page</button>
       </section>`;
     }
     return html ? `<div class="stack" style="margin-top:18px">${html}</div>` : "";
+  }
+
+  async function loadBackup(file) {
+    let data;
+    try { data = JSON.parse(await file.text()); } catch (e) { toast("That file isn't an Exam Prep HQ backup."); return; }
+    if (!data || data.app !== "Exam Prep HQ" || !data.state || !data.state.classes) { toast("That file isn't an Exam Prep HQ backup."); return; }
+    const when = data.savedAt ? new Date(data.savedAt) : null;
+    openModal(`<div class="modal-body"><h3>Load this backup?</h3>
+      <p>This replaces what's on this device with the backup${when ? ` saved ${D.pretty(D.iso(when))}` : ""}${data.state.profile && data.state.profile.name ? ` for ${esc(data.state.profile.name)}` : ""}.</p></div>
+      <div class="modal-foot"><button class="btn ghost" data-act="modal-close">Cancel</button><button class="btn" data-act="backup-confirm">Load it</button></div>`);
+    pendingBackup = data.state;
+  }
+  let pendingBackup = null;
+
+  function addToday() {
+    const s = st();
+    const x = window.Planner.extraSession(s);
+    if (!x) { toast("Nothing to add right now. You're in good shape."); return; }
+    undoable(`Added: ${x.title}`, () => {
+      s.plan.sessions.push(x);
+      s.plan.sessions.sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start));
+      save();
+    });
+    render();
+    sessionDetails(x.id);
+  }
+
+  // One-tap tutorial: the shakiest class that has no tutorial yet, on the next open school day.
+  function tutorialSuggestion() {
+    const s = st();
+    const today = D.today();
+    const shaky = id => {
+      const c = s.classes[id];
+      const t = c.topics.length ? c.topics.reduce((a, x) => a + Number(x.conf || 3), 0) / c.topics.length : Number(c.confidence) || 3;
+      return t + (isNaN(S.gradeNum(c.grade)) ? 0 : S.gradeNum(c.grade) / 100);
+    };
+    const taken = new Set((s.tutorials || []).map(t => t.date));
+    const cands = CFG.EXAMS.filter(e => D.diff(today, e.date) >= 2 && !(s.tutorials || []).some(t => t.classId === e.id && t.date >= today))
+      .sort((a, b) => shaky(a.id) - shaky(b.id));
+    for (const e of cands) {
+      if (shaky(e.id) >= 4) continue;
+      for (let d = D.addDays(today, 1); d < e.date; d = D.addDays(d, 1)) {
+        if (D.isWeekend(d) || taken.has(d) || (s.prefs.offDates || []).includes(d) || CFG.EXAMS.some(x => x.date === d)) continue;
+        return { classId: e.id, date: d };
+      }
+    }
+    return null;
   }
 
   function catchUp() {
@@ -715,15 +801,18 @@
     const s = st();
     const list = [];
     const missing = CFG.EXAMS.filter(e => !s.classes[e.id].topics.length && e.date >= D.today()).sort((a, b) => a.date.localeCompare(b.date));
-    if (missing.length) list.push({ e: "📄", t: `Add your ${S.className(missing[0].id)} study guide`, d: `So your plan covers exactly what's on that exam.${missing.length > 1 ? ` (${missing.length - 1} more after that)` : ""}`, href: "#classes", open: missing[0].id });
-    if (!(s.tutorials || []).length) list.push({ e: "🙋", t: "Plan a tutorial", d: "3:15 to 3:40 p.m. with your teacher.", act: "add-open", mode: "tutorial" });
+    const noCourse = CFG.EXAMS.filter(e => !s.classes[e.id].course && e.date >= D.today());
+    if (noCourse.length) list.push({ e: "📚", t: `Pick your ${noCourse[0].name} class`, d: "If its study guide is loaded, your topics fill in automatically.", href: "#classes", open: noCourse[0].id });
+    else if (missing.length) list.push({ e: "📄", t: `Add your ${S.className(missing[0].id)} study guide`, d: `So your plan covers exactly what's on that exam.${missing.length > 1 ? ` (${missing.length - 1} more after that)` : ""}`, href: "#classes", open: missing[0].id });
+    const sug = tutorialSuggestion();
+    if (sug) list.unshift({ e: "🙋", t: `${S.className(sug.classId)} feels shaky. Add a tutorial?`, d: `One tap adds it: ${D.pretty(sug.date)}, ${D.clock(CFG.TUTORIAL_START)} to ${D.clock(CFG.TUTORIAL_END)}`, act: "tut-suggest", data: `data-class="${sug.classId}" data-d="${sug.date}"` });
     if (!S.mpIsSet()) list.push({ e: "🧩", t: "Add your MindPrint", d: "Get study tips that fit how you learn.", href: "#tips/mindprint" });
     if (!list.length) return "";
     return `<section class="panel nudges" aria-labelledby="nudge-h">
       <h3 id="nudge-h">Make your plan even better</h3>
       ${list.slice(0, 2).map(n => n.href
         ? `<a class="nudge" href="${n.href}" ${n.open ? `data-act="open-class" data-class="${n.open}"` : ""}><span class="e" aria-hidden="true">${n.e}</span><span><b>${n.t}</b><span class="small">${n.d}</span></span></a>`
-        : `<button class="nudge" data-act="${n.act}" ${n.mode ? `data-mode="${n.mode}"` : ""}><span class="e" aria-hidden="true">${n.e}</span><span><b>${n.t}</b><span class="small">${n.d}</span></span></button>`).join("")}
+        : `<button class="nudge" data-act="${n.act}" ${n.mode ? `data-mode="${n.mode}"` : ""} ${n.data || ""}><span class="e" aria-hidden="true">${n.e}</span><span><b>${n.t}</b><span class="small">${n.d}</span></span></button>`).join("")}
     </section>`;
   }
 
@@ -762,26 +851,28 @@
 
   function wizAboutYou() {
     const p = st().profile;
-    const lastExam = CFG.EXAMS.find(e => e.id === "lang");
     return `
       <h1 id="wiz-h">First, a little about you</h1>
       <div class="field"><label for="p-name">What's your first name? <span class="muted">(optional)</span></label><input id="p-name" type="text" data-bind="profile.name" value="${esc(p.name)}" autocomplete="given-name"></div>
       <div class="field"><label>What grade are you in?</label><div class="seg">${["7", "8"].map(g => `<button type="button" data-act="set" data-path="profile.gradeLevel" data-v="${g}" aria-pressed="${p.gradeLevel === g}">${g}th grade</button>`).join("")}</div></div>
-      <div class="field"><label>Is your last exam (${D.pretty(lastExam.date, false)}) World Language or Literature?</label><div class="seg">${["World Language", "Literature"].map(g => `<button type="button" data-act="set" data-path="profile.langChoice" data-v="${g}" aria-pressed="${p.langChoice === g}">${g}</button>`).join("")}</div></div>
-      ${p.langChoice === "World Language" ? `<div class="field"><label for="p-lang">Which language? <span class="muted">(optional)</span></label><input id="p-lang" type="text" data-bind="profile.langName" value="${esc(p.langName)}" placeholder="Spanish, French, Latin..."></div>` : ""}`;
+      <p class="xs muted">Your grade decides which classes you'll see on the next screen.</p>`;
   }
 
   function wizClasses() {
     const s = st();
     return `
-      <h1 id="wiz-h">How are your classes going?</h1>
-      <p class="muted">Pick your letter grade and tap the face that matches how you feel. Classes you're less sure about get more study time. Not sure of your grade? Skip it.</p>
+      <h1 id="wiz-h">Your classes</h1>
+      <p class="muted">For each exam, pick your class, your letter grade, and the face that matches how you feel. Classes you're less sure about get more study time. Not sure of your grade? Skip it.</p>
       <div class="wiz-classes">${CFG.EXAMS.map(e => {
         const c = s.classes[e.id];
         return `<div class="wiz-class" style="${colorVars(e.id)}">
-          <div class="wc-name"><span aria-hidden="true">${e.icon}</span><span><b>${esc(S.className(e.id))}</b><span class="xs muted">Exam ${D.pretty(e.date, false)}</span></span></div>
+          <div class="wc-name"><span aria-hidden="true">${e.icon}</span><span><b>${esc(e.name)}</b><span class="xs muted">Exam ${D.pretty(e.date, false)}</span></span></div>
+          <div class="wc-course">${coursePicker(e.id, true)}</div>
           <div class="wc-grade">${gradePicker(e.id, c.grade, `${esc(S.className(e.id))} letter grade`, true)}</div>
           <div class="conf" role="group" aria-label="How you feel about ${esc(S.className(e.id))}">${confButtons("class-conf", c.confidence, `data-class="${e.id}"`)}</div>
+          ${c.course ? (S.guideFor(e.id) && c.guideFrom === c.course
+            ? `<div class="wc-guide">✓ Study guide ready: ${c.topics.length} topics</div>`
+            : S.guideFor(e.id) ? "" : `<div class="wc-guide pending">Your teacher's study guide will appear here when it's added. Nothing to do now.</div>`) : ""}
         </div>`;
       }).join("")}</div>`;
   }
@@ -835,6 +926,14 @@
       </section>`;
   }
 
+  /* ---------- Quick day buttons for repeating activities ---------- */
+  const QUICK_DAYS = [["Mon & Wed", "1,3"], ["Tue & Thu", "2,4"], ["Mon, Wed & Fri", "1,3,5"], ["Every weekday", "1,2,3,4,5"]];
+  function dayPicker(checked) {
+    const on = new Set(checked || []);
+    return `<div class="quick-days" role="group" aria-label="Quick choices">${QUICK_DAYS.map(([l, d]) => `<button type="button" class="chip" data-act="day-quick" data-days="${d}">${l}</button>`).join("")}</div>
+      <div class="daypick">${D.daysShort.map((d, i) => `<label><input type="checkbox" name="day" value="${i}" ${on.has(i) ? "checked" : ""}><span>${d}</span></label>`).join("")}</div>`;
+  }
+
   /* ---------- Shared editors (used in setup and on My week) ---------- */
   const PRESETS = [["⚽", "Practice"], ["🏀", "Game"], ["🎭", "Rehearsal"], ["🎵", "Lesson"], ["📖", "Tutoring"], ["🙏", "Religious service"], ["🍽️", "Family time"], ["➕", "Something else"]];
 
@@ -858,7 +957,7 @@
           </div>
         </div>
         ${ui.busyType === "weekly"
-          ? `<fieldset class="field" style="border:0;padding:0;margin:0 0 14px"><legend class="small" style="font-weight:600;margin-bottom:4px">Which days?</legend><div class="daypick">${D.daysShort.map((d, i) => `<label><input type="checkbox" name="day" value="${i}"><span>${d}</span></label>`).join("")}</div></fieldset>`
+          ? `<fieldset class="field" style="border:0;padding:0;margin:0 0 14px"><legend class="small" style="font-weight:600;margin-bottom:4px">Which days? <span class="muted" style="font-weight:500">Tap a quick choice or pick days</span></legend>${dayPicker([])}</fieldset>`
           : `<div class="field"><label for="b-date">Date</label><input id="b-date" type="date" required min="${D.today()}"></div>`}
         <div class="fields">
           <div class="field"><label for="b-start">Starts</label><input id="b-start" type="time" value="16:00" required></div>
@@ -951,12 +1050,24 @@
       <button class="tool" data-act="add-calendar"><span class="e" aria-hidden="true">📅</span><b>Add to my calendar</b><span>${st().drive.calendarSyncedAt ? (calendarStale() ? "Your calendar needs an update" : "Update it anytime") : "Google or Apple Calendar"}</span></button>
       <button class="tool ${missed ? "alert" : ""}" data-act="make-up"><span class="e" aria-hidden="true">🔁</span><b>Make up missed sessions${missed ? ` (${missed})` : ""}</b><span>${missed ? "Move them to new times" : "No missed sessions right now"}</span></button>
     </section>
-    ${compact ? "" : `<p class="small no-print tools-more">Your plan updates on its own when you change your classes or schedule. <button class="linkish" data-act="save-menu">More ways to save or share</button></p>`}`;
+    ${compact ? "" : `<p class="small no-print tools-more">Your plan updates on its own when you change your classes or schedule. <button class="linkish" data-act="exp-examweek">Print my exam week page</button> · <button class="linkish" data-act="save-menu">More ways to save or share</button></p>`}`;
   }
 
   // Add to calendar: direct Google Calendar sync when sign-in is on; otherwise a calendar file with clear steps.
   function addCalendar() {
     if (window.Drive.enabled()) { syncGoogleCalendar(); return; }
+    if (isIOS) {
+      openModal(`<div class="modal-body">
+        <h3>📅 Add your plan to your iPad calendar</h3>
+        <ol class="steps-list">
+          <li><b>Tap the button below.</b><br><button class="btn small" data-act="exp-ics" style="margin-top:6px">Add to my calendar</button></li>
+          <li>Your iPad shows your study sessions. <b>Tap “Add All,”</b> then choose a calendar.</li>
+          <li>Open the <b>Calendar</b> app to see them.</li>
+        </ol>
+        <p class="xs muted">Using Google Calendar instead? Importing a file into Google Calendar needs a computer. Ask your teacher about turning on Google sign-in so it can be added directly. If your plan changes, add it again.</p>
+      </div><div class="modal-foot"><button class="btn" data-act="modal-close">Done</button></div>`);
+      return;
+    }
     openModal(`<div class="modal-body">
       <h3>📅 Add your plan to your calendar</h3>
       <ol class="steps-list">
@@ -1000,12 +1111,15 @@
     if (!x) return;
     s.skips = (s.skips || []).filter(k => k.date >= D.addDays(D.today(), -14));
     // "slot": block just this time. "day": block from this time to the end of that day.
+    const snap = JSON.stringify(Object.assign({}, s, { skips: s.skips }));
     s.skips.push({ date: x.date, start: x.start, end: how === "day" ? "23:59" : x.end });
     rebuildQuiet();
     const moved = st().plan.sessions.find(y => !y.done && y.classId === x.classId && y.topicId === x.topicId && y.kind === x.kind);
     closeModal();
     render();
-    toast(moved ? `Moved to ${D.pretty(moved.date)} at ${D.clock(moved.start)}` : "Moved. Check My plan for the new time.");
+    toast(moved ? `Moved to ${D.pretty(moved.date)} at ${D.clock(moved.start)}` : "Moved. Check your study plan for the new time.", () => {
+      clearTimeout(autoTimer); S.replace(JSON.parse(snap)); S.save({ now: true }); render(); toast("Undone.");
+    });
   }
 
   function calendarStale() {
@@ -1025,7 +1139,10 @@
           ${on ? `<button class="dl featured" data-act="exp-gcal"><span class="e" aria-hidden="true">🔔</span><b>${st().drive.calendarSyncedAt ? "Update" : "Add to"} Google Calendar</b><span>Get a reminder before every session.</span></button>` : ""}
           <button class="dl" data-act="exp-print"><span class="e" aria-hidden="true">🖨️</span><b>Print it</b><span>Or save it as a PDF.</span></button>
           <button class="dl" data-act="share"><span class="e" aria-hidden="true">📤</span><b>Share with a parent or advisor</b><span>So they know when you're studying.</span></button>
+          <button class="dl" data-act="exp-examweek"><span class="e" aria-hidden="true">⭐</span><b>Print my exam week page</b><span>One page for the fridge: exams, checklists, pacing.</span></button>
         </div>
+        <h4 style="margin-top:16px">Moving to another device?</h4>
+        <div class="btn-row"><button class="btn small ghost" data-act="backup-save">💾 Save a backup file</button><button class="btn small ghost" data-act="backup-load">📂 Load a backup</button></div>
         <details class="more">
           <summary class="small">More ways to save</summary>
           <div class="save-options small-options">
@@ -1068,7 +1185,7 @@
 
   function eraseAll() {
     S.reset();
-    Object.assign(ui, { openClass: null, openProj: null, showPast: false, flipped: {}, examChecks: {}, mpEdit: false, mpAll: false, busyOpen: false, busyLabel: "", busyType: "weekly" });
+    Object.assign(ui, { openClass: null, showPast: false, flipped: {}, examChecks: {}, mpEdit: false, mpAll: false, busyOpen: false, busyLabel: "", busyType: "weekly" });
     closeModal();
     location.hash = "#today";
     render();
@@ -1128,6 +1245,49 @@
       ${s.plan && s.planStale ? `<div class="btn-row" style="margin-top:20px"><button class="btn big" data-act="build">Update my plan</button></div>` : ""}`;
   }
 
+  // A student picks (or changes) their class level.
+  function chooseCourse(id, course, el) {
+    const c = st().classes[id];
+    const fromGuide = !c.topics.length || (c.guideFrom && c.guideFrom === c.course);
+    c.course = course;
+    let loaded = false;
+    if (S.guideFor(id) && fromGuide) loaded = S.applyGuide(id);
+    else if (!S.guideFor(id) && c.guideFrom && fromGuide) { c.topics = []; c.guideFrom = ""; }
+    save({ planInputs: true });
+    if (loaded) toast(`${course} study guide loaded: ${c.topics.length} topics.`);
+    rerenderKeepFocus(el);
+    const again = document.getElementById(`course-${id}`);
+    if (again) again.focus({ preventScroll: true });
+  }
+
+  // When a guide is added to the site later, fill it in for students who haven't added topics yet.
+  function autoLoadGuides() {
+    const s = st();
+    const added = [];
+    CFG.EXAMS.forEach(e => {
+      const c = s.classes[e.id], g = S.guideFor(e.id);
+      if (!g) return;
+      if (!c.topics.length) { S.applyGuide(e.id); added.push(S.className(e.id)); }
+    });
+    if (added.length) {
+      S.persistLocal();
+      if (s.plan) { s.plan = window.Planner.generate(s); S.save(); }
+      setTimeout(() => toast(`New study guide${added.length > 1 ? "s" : ""} loaded: ${added.join(", ")}`), 600);
+    }
+  }
+
+  // Readiness: sessions done for this class, and how the faces have changed since the first check-in.
+  function readiness(id) {
+    const s = st();
+    const ses = s.plan ? s.plan.sessions.filter(x => x.classId === id) : [];
+    const done = ses.filter(x => x.done).length;
+    const c = s.classes[id];
+    const face = v => (C.confidence.find(x => x.v === Math.round(v)) || C.confidence[2]).emoji;
+    const rated = c.topics.filter(t => t.firstConf);
+    const trend = rated.length ? { from: face(rated.reduce((a, t) => a + Number(t.firstConf), 0) / rated.length), to: face(rated.reduce((a, t) => a + Number(t.conf), 0) / rated.length) } : null;
+    return { total: ses.length, done, trend };
+  }
+
   function classCard(e) {
     const c = st().classes[e.id];
     const name = S.className(e.id);
@@ -1138,15 +1298,15 @@
     const body = !open ? "" : `
       <div class="class-body">
         <div>
+          <div class="field">${coursePicker(e.id, false)}${guideStatus(e.id)}</div>
           <div class="field">${gradePicker(e.id, c.grade, "My letter grade", false)}</div>
           <div class="field"><label id="cl-${e.id}">How I feel about this class</label><div class="conf" role="group" aria-labelledby="cl-${e.id}">${confButtons("class-conf", c.confidence, `data-class="${e.id}"`)}</div></div>
           <label class="drop" data-drop="${e.id}">
             <input type="file" accept=".pdf,.docx,.txt,image/*" multiple data-upload="${e.id}">
-            📤 Upload study guide<br><span class="xs muted">PDF, Word, or photo</span>
+            📤 ${S.guideFor(e.id) ? "Upload a different study guide" : "Upload study guide"}<br><span class="xs muted">PDF, Word, or photo</span>
           </label>
           ${c.guides.length ? `<ul class="guide-files">${c.guides.map((g, i) => `<li>📄 ${g.link ? `<a href="${esc(g.link)}" target="_blank" rel="noopener">${esc(g.name)}</a>` : esc(g.name)} <button class="icon-btn" data-act="guide-del" data-class="${e.id}" data-i="${i}" aria-label="Remove ${esc(g.name)}">✕</button></li>`).join("")}</ul>` : ""}
           <button class="linkish small" style="margin-top:8px" data-act="paste" data-class="${e.id}">Or paste the text</button>
-          ${projection(e)}
         </div>
         <div>
           <h2 class="h4">Study guide topics</h2>
@@ -1169,7 +1329,8 @@
     return `<section class="class-card ${open ? "open" : ""}" style="${colorVars(e.id)}">
       <button class="class-head" data-act="class-toggle" data-class="${e.id}" aria-expanded="${open}">
         <span class="icon" aria-hidden="true">${e.icon}</span>
-        <span class="ch-text"><b>${esc(name)}</b><span class="xs">Exam ${D.pretty(e.date)}</span></span>
+        <span class="ch-text"><b>${esc(c.course || name)}</b><span class="xs">Exam ${D.pretty(e.date)}</span></span>
+        ${(() => { const r = readiness(e.id); return r.total ? `<span class="ready" aria-label="${r.done} of ${r.total} study sessions done"><span class="ready-bar"><span style="width:${Math.round(100 * r.done / r.total)}%"></span></span><span class="xs">${r.done} of ${r.total} done${r.trend && r.trend.from !== r.trend.to ? ` <span class="trend">${r.trend.from} → ${r.trend.to}</span>` : ""}</span></span>` : ""; })()}
         <span class="ch-meta">${c.grade ? `<span class="pill">${esc(c.grade)}</span>` : ""}<span aria-label="${feel ? feel.label : ""}">${feel ? feel.emoji : ""}</span><span class="xs ${c.topics.length ? "" : "muted"}">${status}</span></span>
         <span class="chev" aria-hidden="true">${open ? "▲" : "▼"}</span>
       </button>
@@ -1287,18 +1448,25 @@
           <button class="btn" type="submit">Add tutorial</button>
         </form>`;
     } else if (mode === "busy") {
-      const dowName = date ? D.days[D.dow(date)] : "";
       body = `
         <form data-addform="busy">
-          ${dateField}
           <div class="field"><label for="add-label">What is it?</label><input id="add-label" type="text" required placeholder="Soccer practice"></div>
           <div class="chips" style="margin:-4px 0 12px">${BUSY_PRESETS.map(([e, l]) => `<button type="button" class="chip" data-act="add-preset" data-label="${l}">${e} ${l}</button>`).join("")}</div>
+          <div class="field"><label>How often?</label>
+            <div class="seg">
+              <button type="button" data-act="add-repeat" data-v="weekly" aria-pressed="${ui.addRepeat !== "once"}">Every week</button>
+              <button type="button" data-act="add-repeat" data-v="once" aria-pressed="${ui.addRepeat === "once"}">${date ? `Just ${D.pretty(date, false)}` : "Just once"}</button>
+            </div>
+          </div>
+          <div id="add-days" ${ui.addRepeat === "once" ? "hidden" : ""}>
+            <fieldset class="field" style="border:0;padding:0;margin:0 0 12px"><legend class="small" style="font-weight:600;margin-bottom:4px">Which days? <span class="muted" style="font-weight:500">Tap a quick choice or pick days</span></legend>${dayPicker(date ? [D.dow(date)] : [])}</fieldset>
+          </div>
+          ${!date ? `<div class="field" id="add-once-date" ${ui.addRepeat === "once" ? "" : "hidden"}><label for="add-date">Which day?</label><input id="add-date" type="date" min="${today}" max="${lastExam}"></div>` : ""}
           <div class="fields">
             <div class="field"><label for="add-start">Starts</label><input id="add-start" type="time" value="16:00" required></div>
             <div class="field"><label for="add-end">Ends (with travel)</label><input id="add-end" type="time" value="17:30" required></div>
           </div>
-          <label class="check-line"><input type="checkbox" id="add-weekly" checked> Every ${dowName || "week on this day"}</label>
-          <button class="btn" type="submit" style="margin-top:12px">Add it</button>
+          <button class="btn" type="submit" style="margin-top:4px">Add it</button>
         </form>`;
     } else {
       body = `<form data-addform="dayoff">${dateField}
@@ -1314,7 +1482,8 @@
   function submitAdd(kind) {
     const s = st();
     const date = ui.addDate || ($("#add-date") || {}).value;
-    if (!date) { toast("Pick a day."); return; }
+    const repeating = kind === "busy" && ui.addRepeat !== "once";
+    if (!date && !repeating) { toast("Pick a day."); return; }
     if (kind === "tutorial") {
       if (D.isWeekend(date)) { toast("Tutorials are on school days. Pick a weekday."); return; }
       if ((s.tutorials || []).some(t => t.date === date)) { toast("You already have a tutorial that day."); return; }
@@ -1326,9 +1495,15 @@
       const label = $("#add-label").value.trim(), start = $("#add-start").value, end = $("#add-end").value;
       if (!label) { toast("Add what it is."); return; }
       if (end <= start) { toast("The end time needs to be after the start time."); return; }
-      const weekly = $("#add-weekly").checked;
-      s.busy.push(weekly ? { id: uid(), label, type: "weekly", days: [D.dow(date)], start, end } : { id: uid(), label, type: "once", date, start, end });
-      toast(`Added ${label}. Your plan is updating around it.`);
+      if (repeating) {
+        const days = $$("#modal input[name=day]:checked").map(i => Number(i.value));
+        if (!days.length) { toast("Pick at least one day."); return; }
+        s.busy.push({ id: uid(), label, type: "weekly", days, start, end });
+        toast(`Added ${label}: every ${days.map(d => D.daysShort[d]).join(", ")}. Your plan is updating around it.`);
+      } else {
+        s.busy.push({ id: uid(), label, type: "once", date, start, end });
+        toast(`Added ${label} on ${D.pretty(date)}. Your plan is updating around it.`);
+      }
     } else {
       if (!s.prefs.offDates.includes(date)) s.prefs.offDates.push(date);
       toast("Day off added. Your sessions are moving.");
@@ -1392,6 +1567,7 @@
     const head = `<div class="page-head">${back}<h1><span aria-hidden="true">${t.emoji}</span> ${esc(t.title)}</h1></div>`;
 
     if (id === "tutorials") return head + tipsTutorials();
+    if (id === "help") return head + tipsHelp();
     if (id === "time") return head + tipsTime();
     if (id === "mindprint") return head + tipsMindprint();
     if (id === "myths") return head + `<p class="muted">Guess, then tap to flip.</p><div class="myths">${C.myths.map((m, i) => `
@@ -1404,6 +1580,31 @@
     if (t.checklist) return head + `<section class="panel"><ul class="checklist">${t.checklist.map((c, i) => `<li><label><input type="checkbox" data-examcheck="${i}" ${ui.examChecks[i] ? "checked" : ""}> ${esc(c)}</label></li>`).join("")}</ul></section>`;
     return head + `<p class="muted">${esc(t.blurb)}</p><div class="tip-list">${t.cards.map(c => `
       <section class="tip-item"><h3>${esc(c.title)}</h3><p>${esc(c.body)}</p><div class="try"><b>Try it:</b> ${esc(c.try)}</div></section>`).join("")}</div>`;
+  }
+
+  const HELP = [
+    { q: "Print my study plan", a: "Tap “Print my plan” on Today or My Study Plan. On an iPad, choose your printer, or tap Share to save it as a PDF.", btn: "Print it now", act: "exp-print" },
+    { q: "Print one page for exam week", a: "It lists each exam, your practice exams and tutorials, and the night-before and exam-morning checklists.", btn: "Print my exam week page", act: "exp-examweek" },
+    { q: "Add my plan to my calendar", a: "Tap “Add to my calendar” on Today or My Study Plan and follow the steps.", btn: "Add it now", act: "add-calendar" },
+    { q: "Start a study session", a: "Tap any session, then tap ▶ Start. You get a timer, what to do, and a break.", btn: "Go to Today", href: "#today" },
+    { q: "Move a session I can't do", a: "Tap the session, then “Move it.” Pick later today or another day.", btn: "Open my study plan", href: "#plan" },
+    { q: "Make up a missed session", a: "Tap “Make up missed sessions.” Missed ones move to new times.", btn: "Make them up", act: "make-up" },
+    { q: "Add one more session today", a: "Tap “Add a session today” on Today. You get a quick practice session on your shakiest topic.", btn: "Add one now", act: "add-today" },
+    { q: "Add a tutorial, practice, or day off", a: "Go to My Weekly Schedule and tap “+ Add” on any day.", btn: "Open my schedule", href: "#week" },
+    { q: "Add a study guide", a: "Go to My classes, tap a class, then upload the study guide or paste its text.", btn: "Open My classes", href: "#classes" },
+    { q: "Change how I feel about a topic", a: "On My classes, tap a different face. Your plan adjusts on its own. You can also do it after each session.", btn: "Open My classes", href: "#classes" },
+    { q: "Undo something", a: "Right after you change something, tap “Undo” in the message at the bottom of the screen.", btn: null },
+    { q: "Make the text bigger or hear it read aloud", a: "Tap “Aa” at the top for bigger text, an easier font, or high contrast. Tap 🔊 next to any instruction to hear it.", btn: "Open text settings", act: "display" },
+    { q: "Use my plan on another device", a: "Save a backup file here, then load it on the other device.", btn: "Save a backup file", act: "backup-save", btn2: "Load a backup", act2: "backup-load" },
+    { q: "Start over", a: "Tap “Start over” at the top. You can redo setup or erase everything.", btn: "Start over", act: "start-over" },
+    { q: "I'm feeling overwhelmed", a: "That's normal before exams. Try breathing, extra breaks, or talking to someone.", btn: "Get help now", act: "overwhelmed" }
+  ];
+
+  function tipsHelp() {
+    return `<p class="lead">Quick answers. Tap a button to do it right now.</p>
+      <div class="help-list">${HELP.map(h => `<section class="help-item"><h2 class="h4">${esc(h.q)}</h2><p>${esc(h.a)}</p>
+        ${h.btn ? `<div class="btn-row">${h.href ? `<a class="btn small" href="${h.href}">${esc(h.btn)}</a>` : `<button class="btn small" data-act="${h.act}">${esc(h.btn)}</button>`}${h.btn2 ? `<button class="btn small ghost" data-act="${h.act2}">${esc(h.btn2)}</button>` : ""}</div>` : ""}</section>`).join("")}</div>
+`;
   }
 
   function tipsTutorials() {
@@ -1792,14 +1993,15 @@
       }
       case "topic-conf": {
         const t = s.classes[el.dataset.class].topics.find(x => x.id === el.dataset.id);
-        if (t) t.conf = Number(el.dataset.v);
+        const anyDone = s.plan && s.plan.sessions.some(x => x.classId === el.dataset.class && x.done);
+        if (t) { if (anyDone && !t.firstConf) t.firstConf = Number(t.conf); t.conf = Number(el.dataset.v); }
         save({ planInputs: true });
         rerenderKeepFocus(el);
         break;
       }
       case "topic-del":
-        s.classes[el.dataset.class].topics = s.classes[el.dataset.class].topics.filter(x => x.id !== el.dataset.id);
-        save({ planInputs: true }); render(); break;
+        undoable("Topic removed.", () => { s.classes[el.dataset.class].topics = s.classes[el.dataset.class].topics.filter(x => x.id !== el.dataset.id); save({ planInputs: true }); });
+        render(); break;
       case "guide-del":
         s.classes[el.dataset.class].guides.splice(Number(el.dataset.i), 1);
         save(); render(); break;
@@ -1812,15 +2014,30 @@
       case "preset": ui.busyOpen = true; ui.busyLabel = el.dataset.label; ui.busyType = "weekly"; render(); { const i = $("#b-label"); if (i) i.focus(); } break;
       case "busy-cancel": ui.busyOpen = false; render(); break;
       case "busy-type": ui.busyLabel = ($("#b-label") || {}).value || ""; ui.busyType = el.dataset.v; rerenderKeepFocus(el); break;
-      case "busy-del": s.busy = s.busy.filter(b => b.id !== el.dataset.id); save({ planInputs: true }); if ($("#modal").open && !$("#modal .busy-list")) closeModal(); else if ($("#modal").open) listAll(); render(); toast("Removed. Your plan is updating."); break;
-      case "off-del": s.prefs.offDates = s.prefs.offDates.filter(d => d !== el.dataset.d); save({ planInputs: true }); if ($("#modal").open && !$("#modal .busy-list")) closeModal(); else if ($("#modal").open) listAll(); render(); break;
+      case "busy-del": {
+        const inList = $("#modal").open && $("#modal .busy-list");
+        undoable("Removed. Your plan is updating.", () => { s.busy = s.busy.filter(b => b.id !== el.dataset.id); save({ planInputs: true }); });
+        if (inList) listAll(); else closeModal();
+        render(); break;
+      }
+      case "off-del": {
+        const inList = $("#modal").open && $("#modal .busy-list");
+        undoable("Day off removed.", () => { s.prefs.offDates = s.prefs.offDates.filter(d => d !== el.dataset.d); save({ planInputs: true }); });
+        if (inList) listAll(); else closeModal();
+        render(); break;
+      }
 
       case "tut-done": {
         const t = s.tutorials.find(x => x.id === el.dataset.id);
         if (t) { t.done = !t.done; if (t.done) toast("Nice. If a topic feels better now, tap a happier face on My classes."); }
         s.tutorialsUpdatedAt = Date.now(); save(); if ($("#modal").open) closeModal(); rerenderKeepFocus(el); break;
       }
-      case "tut-del": s.tutorials = s.tutorials.filter(x => x.id !== el.dataset.id); s.tutorialsUpdatedAt = Date.now(); save({ planInputs: true }); if ($("#modal").open && !$("#modal .busy-list")) closeModal(); else if ($("#modal").open) listAll(); render(); break;
+      case "tut-del": {
+        const inList = $("#modal").open && $("#modal .busy-list");
+        undoable("Tutorial removed.", () => { s.tutorials = s.tutorials.filter(x => x.id !== el.dataset.id); s.tutorialsUpdatedAt = Date.now(); save({ planInputs: true }); });
+        if (inList) listAll(); else closeModal();
+        render(); break;
+      }
 
       case "wiz-finish":
         s.plan = window.Planner.generate(s);
@@ -1833,8 +2050,8 @@
       case "build": buildPlan(); render(); break;
       case "toggle-session": {
         const x = s.plan.sessions.find(y => y.id === el.dataset.id);
-        if (x) { x.done = !x.done; if (x.done) toast(["Nice work.", "Done. Another one down.", "That's how it's done.", "Keep it up."][Math.floor(Math.random() * 4)]); }
-        save(); rerenderKeepFocus(el); break;
+        if (x) undoable(x.done ? "Marked not done." : ["Nice work.", "Done. Another one down.", "That's how it's done.", "Keep it up."][Math.floor(Math.random() * 4)], () => { x.done = !x.done; save(); });
+        rerenderKeepFocus(el); break;
       }
       case "toggle-past": ui.showPast = !ui.showPast; render(); break;
       case "reset":
@@ -1843,11 +2060,54 @@
       case "erase-ask": eraseConfirm(); break;
       case "erase-all": eraseAll(); break;
 
+      case "undo": { const f = undoFn; undoFn = null; if (f) f(); break; }
+      case "add-today": addToday(); break;
+      case "use-guide": {
+        const id = el.dataset.class;
+        undoable(`${s.classes[id].course} study guide loaded.`, () => { S.applyGuide(id); save({ planInputs: true }); });
+        render(); break;
+      }
+      case "backup-confirm": {
+        const incoming = pendingBackup; pendingBackup = null;
+        if (!incoming) break;
+        const drive = s.drive;
+        closeModal();
+        undoable("Backup loaded.", () => { S.replace(Object.assign(incoming, { drive })); S.save({ now: true }); });
+        render(); break;
+      }
+      case "tut-suggest": {
+        const classId = el.dataset.class, date = el.dataset.d;
+        undoable(`Added: ${S.className(classId)} tutorial, ${D.pretty(date)}`, () => {
+          s.tutorials.push({ id: uid(), classId, date, start: CFG.TUTORIAL_START, end: CFG.TUTORIAL_END, done: false });
+          s.tutorialsUpdatedAt = Date.now();
+          save({ planInputs: true });
+        });
+        render(); break;
+      }
+      case "exp-examweek": closeModal(); window.Exports.printExamWeek(); break;
+      case "backup-save": window.Exports.backup(); toast("Backup saved to your downloads. Load it on your other device."); break;
+      case "backup-load": { const i = $("#backup-input"); if (i) i.click(); break; }
+      case "help-go": closeModal(); location.hash = el.dataset.href; break;
       case "focus": openFocus(el.dataset.id); break;
       case "week-nav": ui.weekOffset = (ui.weekOffset || 0) + Number(el.dataset.dir); rerenderKeepFocus(el); break;
-      case "add-open": ui.addFixedMode = !!el.dataset.mode; addModal(el.dataset.d || "", el.dataset.mode || ""); break;
+      case "add-open": ui.addFixedMode = !!el.dataset.mode; ui.addRepeat = "weekly"; addModal(el.dataset.d || "", el.dataset.mode || ""); break;
       case "add-mode": addModal(ui.addDate, el.dataset.mode); break;
       case "add-preset": { const i = $("#add-label"); if (i) { i.value = el.dataset.label; i.focus(); } break; }
+      case "add-repeat": {
+        ui.addRepeat = el.dataset.v;
+        $$('#modal [data-act="add-repeat"]').forEach(b => b.setAttribute("aria-pressed", String(b.dataset.v === ui.addRepeat)));
+        const days = $("#add-days"), once = $("#add-once-date");
+        if (days) days.hidden = ui.addRepeat === "once";
+        if (once) once.hidden = ui.addRepeat !== "once";
+        break;
+      }
+      case "day-quick": {
+        const want = new Set(el.dataset.days.split(",").map(Number));
+        const form = el.closest("form") || el.closest(".modal-body") || document;
+        $$("input[name=day]", form).forEach(i => { i.checked = want.has(Number(i.value)); });
+        $$('[data-act="day-quick"]', form).forEach(b => b.setAttribute("aria-pressed", String(b === el)));
+        break;
+      }
       case "tut-edit": tutorialEdit(el.dataset.id); break;
       case "busy-edit": busyEdit(el.dataset.id); break;
       case "off-edit":
@@ -1860,8 +2120,9 @@
       case "details-move": moveMenu(el.dataset.id); break;
       case "details-done": {
         const x = s.plan.sessions.find(y => y.id === el.dataset.id);
-        if (x) { x.done = !x.done; save(); if (x.done) toast("Nice work."); }
-        closeModal(); render(); break;
+        closeModal();
+        if (x) undoable(x.done ? "Marked not done." : "Nice work.", () => { x.done = !x.done; save(); });
+        render(); break;
       }
       case "details-stuck": {
         const x = s.plan.sessions.find(y => y.id === el.dataset.id);
@@ -1906,7 +2167,7 @@
       case "display": displayModal(); break;
       case "display-set": setDisplay(el.dataset.key, el.dataset.v); displayModal(); break;
       case "demo-reset": localStorage.removeItem("examPrepHQ.demo"); location.reload(); break;
-      case "exp-print": try { window.Exports.print(); } catch (err) { toast(err.message); } break;
+      case "exp-print": closeModal(); try { window.Exports.print(); } catch (err) { toast(err.message); } break;
       case "exp-word": window.Exports.word(); toast("Downloaded."); break;
       case "exp-csv": window.Exports.csv(); toast("Downloaded."); break;
       case "exp-ics": window.Exports.ics(); toast("Calendar file downloaded. Now import it (step 2)."); break;
@@ -1970,16 +2231,13 @@
       save({ planInputs: !!el.dataset.plan });
       if (el.dataset.rerender) render();
     }
+    if (el.dataset.course) chooseCourse(el.dataset.course, el.value, el);
     if (el.dataset.upload && el.files.length) handleFiles(el.dataset.upload, Array.from(el.files));
     if (el.dataset.mpupload !== undefined && el.files.length) handleMindprint(el.files[0]);
+    if (el.id === "backup-input" && el.files.length) loadBackup(el.files[0]).finally(() => { el.value = ""; });
     if (el.dataset.examcheck !== undefined) ui.examChecks[el.dataset.examcheck] = el.checked;
     if (el.dataset.daycheck !== undefined) ui.dayChecks[el.dataset.daycheck] = el.checked;
   });
-
-  document.addEventListener("toggle", e => {
-    const d = e.target;
-    if (d.dataset && d.dataset.proj) ui.openProj = d.open ? d.dataset.proj : (ui.openProj === d.dataset.proj ? null : ui.openProj);
-  }, true);
 
   document.addEventListener("input", e => {
     const el = e.target;
@@ -2082,6 +2340,8 @@
   window.addEventListener("hashchange", render);
   applyDisplay();
   if (S.demo && !st().plan) buildDemo();
+  autoLoadGuides();
+  if (st().plan && st().plan.sessions.some(x => !x.done && !x.steps)) { st().plan = window.Planner.generate(st()); S.save(); }
   renderBrand();
   render();
   if (window.Drive.enabled()) window.Drive.init().catch(() => {});

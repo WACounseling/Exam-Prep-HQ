@@ -35,6 +35,15 @@
 
   /* ---------- One HTML document used for print, Word, and Google Docs ---------- */
   function planHTML(forPrint) {
+    const inner = planBody();
+    const name = S.state.profile.name ? `${esc(S.state.profile.name)}'s` : "My";
+    return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${name} Exam Prep Plan</title>
+      ${forPrint ? '<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;800&display=swap" rel="stylesheet">' : ""}
+      <style>body{font-family:Montserrat,Arial,sans-serif;color:#0d2b46;margin:24px;} h1{color:#9d2235;margin:0 0 4px;} @media print{h3{break-after:avoid;} table{break-inside:auto;} tr{break-inside:avoid;}}</style>
+      </head><body>${inner}</body></html>`;
+  }
+
+  function planBody() {
     const name = S.state.profile.name ? `${esc(S.state.profile.name)}'s` : "My";
     const mins = S.examMinutes();
     const rows = byDate().map(day => {
@@ -53,16 +62,52 @@
 
     const examList = CFG.EXAMS.map(e => `<li>${esc(S.className(e.id))}: ${D.pretty(e.date)}</li>`).join("");
 
-    return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${name} Exam Prep Plan</title>
-      ${forPrint ? '<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;800&display=swap" rel="stylesheet">' : ""}
-      <style>body{font-family:Montserrat,Arial,sans-serif;color:#0d2b46;margin:24px;} h1{color:#9d2235;margin:0 0 4px;} @media print{h3{break-after:avoid;} table{break-inside:auto;} tr{break-inside:avoid;}}</style>
-      </head><body>
-      <h1>${name} Exam Prep Plan</h1>
+    return `<h1>${name} Exam Prep Plan</h1>
       <p style="margin:0 0 12px;">${esc(CFG.SCHOOL_NAME)} ${esc(CFG.DIVISION)}, ${esc(CFG.SEMESTER_LABEL)}. Each exam is ${mins} minutes${mins > CFG.EXAM_MINUTES ? " with your extended time" : ""}.</p>
       <p><b>Exam dates</b></p><ul>${examList}</ul>
       <p>Check off ☐ each session when you finish it. Sessions are ${S.state.prefs.sessionLen} minutes with a break after.</p>
       ${rows || "<p>No sessions yet. Build your plan in Exam Prep HQ first.</p>"}
-      </body></html>`;
+      `;
+  }
+
+  /* ---------- Exam week at a glance (one page) ---------- */
+  function examWeekBody() {
+    const st = S.state;
+    const name = st.profile.name ? `${esc(st.profile.name)}'s` : "My";
+    const mins = S.examMinutes();
+    const extra = mins > CFG.EXAM_MINUTES;
+    const preview = Math.round(mins * 0.07), check = Math.round(mins * 0.15), answer = mins - preview - check;
+    const td = 'style="border:1px solid #bbb;padding:7px;vertical-align:top;"';
+    const rows = CFG.EXAMS.slice().sort((a, b) => a.date.localeCompare(b.date)).map(e => {
+      const test = sessions().find(x => x.classId === e.id && x.kind === "test");
+      const tuts = (st.tutorials || []).filter(t => t.classId === e.id && t.date <= e.date).map(t => D.pretty(t.date));
+      const g = S.guideFor(e.id);
+      return `<tr><td ${td}><b>${esc(S.className(e.id))}</b>${g && g.bring ? `<br><span style="font-size:9.5pt;">Bring: ${esc(g.bring)}</span>` : ""}</td><td ${td}>${D.pretty(e.date)}${g && g.examTime ? `<br>${esc(g.examTime)}` : ""}</td>
+        <td ${td}>${test ? `${D.pretty(test.date, false)}, ${D.clock(test.start)}` : "The day before"}</td>
+        <td ${td}>${tuts.length ? esc(tuts.join("; ")) : "None planned"}</td>
+        <td ${td}>☐ Packed &nbsp; ☐ Slept</td></tr>`;
+    }).join("");
+    const list = items => `<ul style="list-style:none;padding:0;margin:0;">${items.map(i => `<li style="margin:4px 0;">☐ ${i}</li>`).join("")}</ul>`;
+    return `<h1 style="color:#9d2235;margin:0 0 4px;font-family:Montserrat,Arial,sans-serif;">${name} Exam Week</h1>
+      <p style="margin:0 0 12px;">Each exam is <b>${mins} minutes</b>${extra ? " with your extended time. Use all of it" : ""}. Pacing plan: look it over for ${preview} minutes, answer for ${answer}, and check for ${check}.</p>
+      <table style="border-collapse:collapse;width:100%;font-size:11pt;margin-bottom:14px;">
+        <tr><th ${td} align="left">Exam</th><th ${td} align="left">Day</th><th ${td} align="left">Practice exam</th><th ${td} align="left">Tutorial</th><th ${td} align="left">Ready?</th></tr>${rows}</table>
+      <table style="width:100%;border-collapse:collapse;"><tr>
+        <td style="width:50%;vertical-align:top;padding-right:12px;"><h3 style="color:#0d2b46;margin:0 0 6px;">🌙 The night before</h3>${list(["Do your practice exam session", "Pack your supplies (pens, pencils, highlighter, calculator if allowed), water, and a snack", "Light review only, nothing new", "Screens off early and lights out on time"])}</td>
+        <td style="width:50%;vertical-align:top;"><h3 style="color:#0d2b46;margin:0 0 6px;">☀️ Exam morning</h3>${list(["Eat breakfast", "Bring your supplies, water, and a snack", "Know which room you're in", "One slow breath: in for 4, out for 6", extra ? `Use all ${mins} minutes` : "Use all of your time"])}</td>
+      </tr></table>
+      <p style="margin-top:14px;font-size:10pt;color:#555;">You've prepared for this. One exam is one day; it doesn't measure how smart you are.</p>`;
+  }
+
+  // Print inside the page (works on iPad, where pop-up print windows are unreliable).
+  function printInPage(html) {
+    let area = document.getElementById("print-area");
+    if (!area) { area = document.createElement("div"); area.id = "print-area"; document.body.appendChild(area); }
+    area.innerHTML = html;
+    document.body.classList.add("printing");
+    const done = () => { document.body.classList.remove("printing"); area.innerHTML = ""; window.removeEventListener("afterprint", done); };
+    window.addEventListener("afterprint", done);
+    setTimeout(() => { window.print(); setTimeout(() => { if (!window.matchMedia("print").matches) done(); }, 1500); }, 150);
   }
 
   function download(name, content, type) {
@@ -93,7 +138,7 @@
     sessions().forEach(s => {
       ev.push(["BEGIN:VEVENT", `UID:${s.id}@examprephq`, `DTSTAMP:${stamp}`,
         `DTSTART:${dt(s.date, s.start)}`, `DTEND:${dt(s.date, s.end)}`,
-        `SUMMARY:${fold("📚 " + s.title)}`, `DESCRIPTION:${fold(s.topicText + "\n" + s.tip)}`,
+        `SUMMARY:${fold("📚 " + s.title)}`, `DESCRIPTION:${fold(s.topicText + "\n" + s.tip + ((s.resources || []).length ? "\nUse: " + s.resources.slice(0, 3).join("; ") : ""))}`,
         "BEGIN:VALARM", "TRIGGER:-PT10M", "ACTION:DISPLAY", `DESCRIPTION:${fold(s.title)}`, "END:VALARM",
         "END:VEVENT"].join("\r\n"));
     });
@@ -149,12 +194,14 @@
     planHTML,
     googleEvents,
     askTopics,
-    print() {
-      const w = window.open("", "_blank");
-      if (!w) throw new Error("Your browser blocked the print window. Allow pop-ups for this site and try again.");
-      w.document.write(planHTML(true));
-      w.document.close();
-      setTimeout(() => { w.focus(); w.print(); }, 700);
+    print() { printInPage(planBody()); },
+    printExamWeek() { printInPage(examWeekBody()); },
+    examWeekBody,
+    // Backup file: everything needed to move a plan to another device.
+    backup() {
+      const data = { app: "Exam Prep HQ", savedAt: new Date().toISOString(), state: Object.assign({}, S.state, { drive: {} }) };
+      const name = (S.state.profile.name || "My") + " Exam Prep backup.json";
+      download(name, JSON.stringify(data), "application/json");
     },
     word() { download("Exam Prep Plan.doc", "\ufeff" + planHTML(false), "application/msword"); },
     csv() { download("Exam Prep Plan.csv", "\ufeff" + csv(), "text/csv"); },

@@ -1,0 +1,25 @@
+/* Study guide manager (admin.html) */
+body.admin main { max-width: 1160px; }
+.course-groups { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
+.course-group h3 { margin: 6px 0 6px; }
+.course-list { list-style: none; padding: 0; margin: 0; }
+.course-list li { display: grid; grid-template-columns: 1fr auto; grid-template-areas: "name act" "meta act"; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.course-list .c-name { grid-area: name; font-weight: 600; }
+.course-list li.has .c-name { color: #1e6141; }
+.course-list .c-meta { grid-area: meta; color: var(--muted); }
+.course-list .c-act { grid-area: act; display: flex; gap: 12px; align-items: center; }
+.pick-courses { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
+.pick-courses fieldset { border: 1px solid var(--line); border-radius: var(--r-sm); padding: 8px 12px; margin: 0; }
+.pick-courses legend { font-weight: 800; font-size: var(--fs-sm); padding: 0 4px; }
+.pc { display: flex; gap: 8px; align-items: center; font-weight: 500; font-size: var(--fs-sm); margin: 4px 0; }
+.pc input { width: 18px; height: 18px; accent-color: var(--red); }
+.small-drop { padding: 10px 16px; display: inline-block; }
+.t-list { display: grid; gap: 10px; }
+.t-row { border: 1px solid var(--line); border-radius: var(--r-md); padding: 10px 12px; background: var(--mist); }
+.t-head { display: flex; gap: 6px; align-items: center; }
+.t-num { font-weight: 800; color: var(--muted); width: 1.6em; }
+.t-text { font-weight: 700; flex: 1; }
+.t-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 8px; }
+.t-cols label { font-size: var(--fs-sm); }
+.t-cols textarea { min-height: 80px; font-size: var(--fs-sm); }
+@media (max-width: 700px) { .t-cols { grid-template-columns: 1fr; } }
