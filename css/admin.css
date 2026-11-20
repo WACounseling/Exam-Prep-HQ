@@ -23,3 +23,13 @@ body.admin main { max-width: 1160px; }
 .t-cols label { font-size: var(--fs-sm); }
 .t-cols textarea { min-height: 80px; font-size: var(--fs-sm); }
 @media (max-width: 700px) { .t-cols { grid-template-columns: 1fr; } }
+
+.parts-ed { display: grid; gap: 8px; margin-bottom: 8px; }
+.part-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; background: var(--mist); border-radius: var(--r-sm); padding: 8px 10px; }
+.part-row .p-name { max-width: 220px; font-weight: 700; }
+.part-row .p-date { max-width: 190px; }
+.p-periods { display: flex; flex-wrap: wrap; gap: 6px; width: 100%; }
+.p-periods label { display: grid; gap: 2px; font-weight: 800; }
+.p-periods input { max-width: 150px; padding: 6px; }
+.t-part { display: flex; gap: 8px; align-items: center; margin-top: 6px; font-weight: 700; }
+.t-part select { max-width: 240px; min-height: 36px; padding: 4px 8px; }

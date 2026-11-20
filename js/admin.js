@@ -16,7 +16,8 @@
   let guides = JSON.parse(JSON.stringify(published));
   let unsaved = false;
   // The guide being edited
-  let edit = { courses: [], topics: [], examTime: "", bring: "", file: "", source: "" };
+  let edit = { courses: [], topics: [], examTime: "", bring: "", file: "", source: "", parts: [] };
+  const PERIODS = ["A", "B", "C", "D", "E", "F", "G"];
 
   const EXAM_NAMES = Object.fromEntries(CFG.EXAMS.map(e => [e.id, e.name]));
 
@@ -89,6 +90,7 @@
           <button class="icon-btn" data-act="t-up" data-i="${i}" aria-label="Move topic up" ${i === 0 ? "disabled" : ""}>▲</button>
           <button class="icon-btn" data-act="t-down" data-i="${i}" aria-label="Move topic down" ${i === edit.topics.length - 1 ? "disabled" : ""}>▼</button>
           <button class="icon-btn" data-act="t-del" data-i="${i}" aria-label="Remove topic">🗑️</button></div>
+        ${edit.parts.length ? `<label class="t-part small">Practice for: <select class="t-partsel" data-i="${i}"><option value="">Exam day</option>${edit.parts.map(p => `<option value="${esc(p.name)}" ${t.part === p.name ? "selected" : ""}>${esc(p.name)} (in class)</option>`).join("")}</select></label>` : ""}
         <div class="t-cols">
           <label>What's covered <span class="xs muted">(one per line)</span><textarea class="t-details" data-i="${i}" rows="3">${esc((t.details || []).join("\n"))}</textarea></label>
           <label>How to study / what to use <span class="xs muted">(one per line)</span><textarea class="t-res" data-i="${i}" rows="3">${esc((t.resources || []).join("\n"))}</textarea></label>
@@ -116,6 +118,19 @@
       ${edit.topics.length ? `<h3 class="h4" style="margin-top:18px">Topics students will see (${edit.topics.length})</h3><div class="t-list">${topics}</div>
         <button class="btn ghost small" data-act="t-add" style="margin-top:8px">+ Add a topic</button>` : `<p class="small muted" style="margin-top:12px">Upload or paste a guide to fill in topics, or add them by hand.</p>`}
 
+      <h3 class="h4" style="margin-top:18px">In-class exam parts <span class="small muted" style="font-weight:500">(optional, like listening, essay, or speaking before exam day)</span></h3>
+      <p class="small muted">Topics marked "Practice for" a part are planned to finish the day before that part.</p>
+      <div class="parts-ed">${edit.parts.map((p, i) => `
+        <div class="part-row" data-i="${i}">
+          <input type="text" class="p-name" data-i="${i}" value="${esc(p.name)}" placeholder="Speaking" aria-label="Part ${i + 1} name">
+          <label class="small"><input type="checkbox" class="p-byper" data-i="${i}" ${p.dates ? "checked" : ""}> Different dates by period</label>
+          ${p.dates
+            ? `<div class="p-periods">${PERIODS.map(k => `<label class="xs">${k}<input type="date" class="p-pdate" data-i="${i}" data-k="${k}" value="${esc((p.dates || {})[k] || "")}"></label>`).join("")}</div>`
+            : `<input type="date" class="p-date" data-i="${i}" value="${esc(p.date || "")}" aria-label="Part ${i + 1} date">`}
+          <button class="icon-btn" data-act="p-del" data-i="${i}" aria-label="Remove part">🗑️</button>
+        </div>`).join("")}</div>
+      <button class="btn ghost small" data-act="p-add">+ Add an in-class part</button>
+
       <h3 class="h4" style="margin-top:18px">Exam details <span class="small muted" style="font-weight:500">(optional, shown to students)</span></h3>
       <div class="fields">
         <div class="field"><label for="g-time">Exam time</label><input id="g-time" type="text" value="${esc(edit.examTime)}" placeholder="8:50 to 10 a.m."></div>
@@ -135,6 +150,10 @@
     $$(".t-text").forEach(i => { edit.topics[i.dataset.i].text = i.value; });
     $$(".t-details").forEach(i => { edit.topics[i.dataset.i].details = i.value.split("\n").map(x => x.trim()).filter(Boolean); });
     $$(".t-res").forEach(i => { edit.topics[i.dataset.i].resources = i.value.split("\n").map(x => x.trim()).filter(Boolean); });
+    $$(".t-partsel").forEach(i => { edit.topics[i.dataset.i].part = i.value; });
+    $$(".p-name").forEach(i => { edit.parts[i.dataset.i].name = i.value.trim(); });
+    $$(".p-date").forEach(i => { edit.parts[i.dataset.i].date = i.value; });
+    $$(".p-pdate").forEach(i => { const p = edit.parts[i.dataset.i]; p.dates = p.dates || {}; if (i.value) p.dates[i.dataset.k] = i.value; else delete p.dates[i.dataset.k]; });
     const t = $("#g-time"), b = $("#g-bring"), f = $("#g-file");
     if (t) edit.examTime = t.value.trim();
     if (b) edit.bring = b.value.trim();
@@ -174,8 +193,8 @@
     const act = el.dataset.act;
     if (act === "edit") {
       const c = el.dataset.course, g = guides[c];
-      edit = g ? { courses: Object.keys(guides).filter(k => JSON.stringify(guides[k].topics) === JSON.stringify(g.topics)), topics: JSON.parse(JSON.stringify(g.topics)), examTime: g.examTime || "", bring: g.bring || "", file: g.file || "", source: "" }
-               : { courses: [c], topics: [], examTime: "", bring: "", file: "", source: "" };
+      edit = g ? { courses: Object.keys(guides).filter(k => JSON.stringify(guides[k].topics) === JSON.stringify(g.topics) && JSON.stringify(guides[k].parts || []) === JSON.stringify(g.parts || [])), topics: JSON.parse(JSON.stringify(g.topics)), examTime: g.examTime || "", bring: g.bring || "", file: g.file || "", source: "", parts: JSON.parse(JSON.stringify(g.parts || [])) }
+               : { courses: [c], topics: [], examTime: "", bring: "", file: "", source: "", parts: [] };
       rerenderEditor();
       $("#editor").scrollIntoView({ behavior: "smooth" });
     }
@@ -209,14 +228,20 @@
         rerenderEditor();
       });
     }
-    if (act === "clear") { edit = { courses: [], topics: [], examTime: "", bring: "", file: "", source: "" }; rerenderEditor(); }
+    if (act === "clear") { edit = { courses: [], topics: [], examTime: "", bring: "", file: "", source: "", parts: [] }; rerenderEditor(); }
+    if (act === "p-add") { readForm(); edit.parts.push({ name: "", date: "" }); rerenderEditor(); const last = $$(".p-name").pop(); if (last) last.focus(); }
+    if (act === "p-del") { readForm(); edit.parts.splice(Number(el.dataset.i), 1); rerenderEditor(); }
     if (act === "save") {
       readForm();
       const topics = edit.topics.filter(t => t.text.trim());
       if (!edit.courses.length) { toast("Pick at least one class for this guide."); return; }
       if (!topics.length) { toast("Add at least one topic."); return; }
       edit.courses.forEach(c => {
-        guides[c] = { updated: today(), file: edit.file, examTime: edit.examTime, bring: edit.bring, topics: JSON.parse(JSON.stringify(topics)) };
+        const parts = edit.parts.filter(p => p.name && (p.date || (p.dates && Object.keys(p.dates).length)))
+          .map(p => Object.assign({ name: p.name, where: "In class" }, p.dates && Object.keys(p.dates).length ? { dates: p.dates } : { date: p.date }));
+        const names = new Set(parts.map(p => p.name));
+        const clean = topics.map(t => { const x = Object.assign({}, t); if (!x.part || !names.has(x.part)) delete x.part; return x; });
+        guides[c] = Object.assign({ updated: today(), file: edit.file, examTime: edit.examTime, bring: edit.bring, topics: JSON.parse(JSON.stringify(clean)) }, parts.length ? { parts } : {});
       });
       saveDraft();
       const names = edit.courses.join(", ");
@@ -245,6 +270,13 @@
   });
 
   document.addEventListener("change", e => {
+    if (e.target.classList.contains("p-byper")) {
+      readForm();
+      const p = edit.parts[e.target.dataset.i];
+      if (e.target.checked) { p.dates = {}; delete p.date; } else { p.date = Object.values(p.dates || {}).sort()[0] || ""; delete p.dates; }
+      rerenderEditor();
+    }
+    if (e.target.classList.contains("p-name")) { readForm(); rerenderEditor(); }
     if (e.target.id === "guide-file" && e.target.files.length) readFile(e.target.files[0]);
   });
 

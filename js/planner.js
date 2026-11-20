@@ -89,9 +89,9 @@
         const details = (t.details || []).filter(Boolean);
         if (details.length > 4) {
           // Big sections become smaller study sessions, each with the same rating.
-          chunk(details).forEach((part, k) => out.push({ id: `${t.id}-p${k}`, baseId: t.id, name: t.text, items: part, text: `${t.text}: ${part.join(", ")}`, conf: t.conf, isPart: true, resources: t.resources || [] }));
+          chunk(details).forEach((part, k) => out.push({ id: `${t.id}-p${k}`, baseId: t.id, name: t.text, items: part, text: `${t.text}: ${part.join(", ")}`, conf: t.conf, isPart: true, resources: t.resources || [], examPart: t.part || "" }));
         } else {
-          out.push({ id: t.id, baseId: t.id, name: t.text, items: details, text: details.length ? `${t.text}: ${details.join(", ")}` : t.text, conf: t.conf, resources: t.resources || [] });
+          out.push({ id: t.id, baseId: t.id, name: t.text, items: details, text: details.length ? `${t.text}: ${details.join(", ")}` : t.text, conf: t.conf, resources: t.resources || [], examPart: t.part || "" });
         }
       });
       return out;
@@ -108,6 +108,15 @@
       const grade = window.Store.gradeNum(cls.grade);
       const deadline = D.addDays(e.date, -1);
       topicsFor(state, e.id).forEach(t => {
+        // Topics for an in-class part (listening, essay, speaking) finish the day before that part.
+        let topicDeadline = deadline;
+        if (t.examPart) {
+          const pd = window.Store.partDate(e.id, t.examPart);
+          if (pd) {
+            if (pd <= D.today()) return;            // that part is over
+            topicDeadline = D.addDays(pd, -1) < deadline ? D.addDays(pd, -1) : deadline;
+          }
+        }
         const conf = Number(t.conf) || Number(cls.confidence) || 3;
         let reps = conf <= 2 ? 3 : conf === 3 ? 2 : 1;
         if (t.isPart) reps = Math.min(reps, 2);   // parts are smaller, so 2 rounds is plenty
@@ -116,7 +125,7 @@
         const weight = (6 - conf) + (isNaN(grade) ? 0 : grade < 80 ? 2 : grade < 88 ? 1 : 0);
         for (let r = 0; r < reps; r++) {
           const kind = r === 0 ? "rebuild" : (r === reps - 1 && reps >= 3 ? "mix" : "quiz");
-          tasks.push({ classId: e.id, topicId: t.id, baseId: t.baseId || t.id, topicText: t.text, name: t.name || t.text, items: t.items || [], resources: t.resources || [], rep: r, reps, kind, weight, deadline, earliest: null, done: false });
+          tasks.push({ classId: e.id, topicId: t.id, baseId: t.baseId || t.id, topicText: t.text, name: t.name || t.text, items: t.items || [], resources: t.resources || [], examPart: t.examPart || "", rep: r, reps, kind, weight, deadline: topicDeadline, earliest: null, done: false });
         }
       });
       const allRes = [];
@@ -153,8 +162,10 @@
   }
   function kindOfText(t, classId) {
     const task = { classId };
-    if (task.classId === "math" || /\b(equation|slope|function|graph|fraction|ratio|algebra|geometry|integer|expression|inequalit|probabilit|statistic)/.test(t)) return "math";
-    if (/\b(grammar|comma|semicolon|participle|gerund|infinitive|verbal|voice|fragment|run-on|punctuation|clause|phrase|sentence|verb tense|conjugat|agreement)/.test(t)) return "grammar";
+    if (/\b(speaking|oral questions|interview|conversation)/.test(t)) return "speaking";
+    if (/\b(listening)/.test(t)) return "listening";
+    if (task.classId === "math" || /\b(equation|slope|function|graph|fraction|ratio|algebra|geometry|integer|expression|inequalit|probabilit|statistic|speed|velocity|acceleration|work and power|net force|displacement|metric|conversion)/.test(t)) return "math";
+    if (/\b(grammar|comma|semicolon|participle|gerund|infinitive|verbal|voice|fragment|run-on|punctuation|clause|phrase|sentence|verb tense|conjugat|agreement|capitaliz|quotation|italic|parts of speech|prepositional|complement|subjects and verbs|noun position)/.test(t)) return "grammar";
     if (/\b(vocab|word list|key terms|terms|definitions)/.test(t)) return "vocab";
     if (/\b(figure|figurative|simile|metaphor|literary (terms|devices)|personification|irony)/.test(t)) return "devices";
     if (/\b(writing|essay|paragraph|thesis|response)/.test(t)) return "writing";
@@ -167,16 +178,17 @@
   /* ---------- Overview + numbered steps, built from the study guide ---------- */
   const joinList = list => list.length <= 1 ? (list[0] || "") : list.length === 2 ? `${list[0]} and ${list[1]}` : `${list.slice(0, -1).join(", ")}, and ${list[list.length - 1]}`;
   // "Review sheets pgs. 2-5" -> "review sheets pgs. 2-5" (keeps names like "Veracross" capitalized)
-  const lc = t => /^[A-Z][a-z]/.test(t) && !/^(Veracross|Quizlet|Google|Shakespeare|The )/.test(t) ? t.charAt(0).toLowerCase() + t.slice(1) : t;
+  const lc = t => /^[A-Z][a-z]/.test(t) && !/^(Veracross|Quizlet|Google|Shakespeare|The |Writing with Power|Holt Handbook|Sadlier|Long Way Down|Ghost Boys|Good Enough|Formative)/.test(t) ? t.charAt(0).toLowerCase() + t.slice(1) : t;
 
   // Pick the teacher's resources that fit a purpose: strong matches first, then weaker ones.
   function pickRes(res, purpose) {
     const R = res || [];
     const tests = {
-      learn: [/review sheet|study guide|notes|slideshow|handout|lesson/i, /pg|page|packet/i],
-      practice: [/practice|workbook|worksheet|problem|exercise/i, /pretest|quizlet|packet/i],
-      check: [/test analysis|old (quiz|test)|answer|key/i, /review sheet|quiz/i],
-      vocab: [/vocab|word list|flashcard/i, /quizlet|pretest|list/i]
+      learn: [/review (sheet|packet)|study guide|slideshow|handout|lesson|textbook|writing with power|holt handbook/i, /notes|pg|page|packet/i],
+      practice: [/practice|workbook|worksheet|problem|exercise|checkpoint|skills/i, /review packet|pretest|quizlet|packet/i],
+      check: [/test analysis|old (quiz|test)|tests and quizzes|answer|key/i, /review sheet|quiz/i],
+      vocab: [/vocab|word list|flashcard/i, /quizlet|pretest|list/i],
+      formula: [/formula/i]
     };
     for (const re of tests[purpose]) { const hit = R.filter(r => re.test(r)); if (hit.length) return hit.slice(0, 2).map(lc); }
     return R.slice(0, 2).map(lc);
@@ -196,6 +208,7 @@
     const learn = pickRes(res, "learn"), practice = pickRes(res, "practice"), check = pickRes(res, "check"), vocab = pickRes(res, "vocab");
     const open = list => list.length ? `Open your ${list[0]}${list[1] ? ` (also helpful: ${list[1]})` : ""}.` : "Open your notes, study guide, and old quizzes for this topic.";
     const one = list => list.length ? list[0] : "";
+    const oneWork = items.length > 0 && items.every(i => /\b(characters?|plot|events|themes?|setting|symbols?|rules|title|genre)\b/i.test(i));
     const fromGuide = res.length > 0;
     let overview = "", steps = [];
 
@@ -209,8 +222,14 @@
       const all = otherTopics(state, task, 8);
       const g = window.GUIDES && state.classes[task.classId] && state.classes[task.classId].course ? window.GUIDES[state.classes[task.classId].course] : null;
       overview = `Practice exam: a run-through of the whole ${window.Store.className(task.classId)} study guide, the day before the real thing.`;
+      const allRes = [];
+      topicsFor(state, task.classId).forEach(t => (t.resources || []).forEach(r => { if (!allRes.includes(r)) allRes.push(r); }));
+      const hasPacket = allRes.some(r => /review (packet|sheet)/i.test(r));
+      const extras = allRes.filter(r => !/\bpgs?\.|\bpp?\.|page|section|chapter|\bch\.|in the packet|review packet/i.test(r)).map(lc).slice(0, 3);
+      const gather = [hasPacket ? "your whole review packet" : "your study guide", ...extras];
+      if (!extras.some(r => /quiz/i.test(r))) gather.push("any old quizzes");
       steps = [
-        `${res.length ? `Gather your ${joinList(res.slice(0, 3).map(lc))}` : "Gather your study guide"} and any old quizzes.`,
+        `Gather ${joinList(gather)}.`,
         `Without notes, answer questions from every section${all.length ? `: ${joinList(all)}` : ""}.`,
         "Check your answers against the study guide. Mark everything you missed.",
         "Spend the last few minutes on just the parts you missed.",
@@ -219,40 +238,53 @@
       return { overview, steps };
     }
 
+    const lang = window.Store.langOf ? window.Store.langOf(task.classId) : "";
+    const partNote = task.examPart && window.Store.partDate(task.classId, task.examPart)
+      ? ` Your ${task.examPart.toLowerCase()} section is in class on ${D.pretty(window.Store.partDate(task.classId, task.examPart))}.` : "";
+
     if (task.kind === "rebuild") {
-      overview = `First round on ${name}. ${fromGuide ? "Use your teacher's materials to build" : "Build"} a study tool you'll use again.`;
+      overview = `First round on ${name}. ${fromGuide ? "Use your teacher's materials to build" : "Build"} a study tool you'll use again.${partNote}`;
       const s1 = open(learn);
       const map = {
-        grammar: [s1, `Read the rule for each: ${what}.`, `On a fresh page, redo the practice sentences for ${what} without looking at your old answers.`, `Check your work${check.length ? ` with your ${one(check)}` : ""} and circle anything you missed.`, "For each one you missed, write the rule in your own words."],
+        grammar: [s1, `Read the rules for ${items.length ? what : name.toLowerCase()}.`, `On a fresh page, redo the practice sentences for ${items.length ? what : name.toLowerCase()} without looking at your old answers.`, `Check your work${check.length ? ` with your ${one(check)}` : ""} and circle anything you missed.`, "For each one you missed, write the rule in your own words."],
         devices: [s1, `For each one (${what}), write the definition in your own words.`, "Write your own example for each.", "Find one real example of each in something you've read this semester."],
-        vocab: [open(vocab.length ? vocab : learn), `Make flashcards for ${what}: the word on the front, the meaning and your own sentence on the back.`, "Say each word and its meaning out loud.", "Put the ones you don't know yet in a separate pile."],
-        literature: [s1, `For ${what}, write the main characters, setting, what happens, and the big themes.`, "Add one important moment or quote for each.", "Explain each one out loud in about a minute."],
-        writing: [s1, `Write the parts of the ${what} from memory.`, `Check them against your ${learn.length ? one(learn) : "notes"} and fix anything you missed.`, "Outline one practice paragraph using that format."],
-        math: [s1, `Find the examples for ${what} and redo 3 of them, showing every step.`, `Try 3 similar problems on your own${practice.length && one(practice) !== one(learn) ? ` from your ${one(practice)}` : ""}.`, "Check your answers. For each mistake, write what went wrong."],
+        vocab: [open(vocab.length ? vocab : learn), `Make flashcards for ${items.length ? `every word in ${what}` : "every vocabulary word"}: the word on the front, the meaning and your own sentence on the back.`, "Say each word and its meaning out loud.", "Put the ones you don't know yet in a separate pile."],
+        literature: oneWork
+          ? [s1, `For ${name}, write the main characters, setting, what happens, and the big themes.${items.length ? ` Focus on ${what}.` : ""}`, "Add a few important moments or quotes.", "Explain the story out loud in about a minute."]
+          : [s1, `For ${what}, write the main characters, setting, what happens, and the big themes.`, "Add one important moment or quote for each.", "Explain each one out loud in about a minute."],
+        writing: [s1, items.length ? `Without looking, write out ${what}.` : `Write the parts of the ${name.toLowerCase()} from memory.`, `Check them against your ${learn.length ? one(learn) : "notes"} and fix anything you missed.`, "Outline one practice paragraph using that format."],
+        math: [s1, `Find the examples for ${what} and redo 3 of them, showing every step${pickRes(res, "formula").length && /formula/i.test(res.join(" ")) ? ` (use the ${res.find(r => /formula/i.test(r)).replace(/^./, c => c.toLowerCase())})` : ""}.`, `Try 3 similar problems on your own${practice.length && one(practice) !== one(learn) ? ` from your ${one(practice)}` : ""}.`, "Check your answers. For each mistake, write what went wrong."],
         history: [s1, `Make a timeline or cause-and-effect chart for ${what}.`, "Add the key people, places, and dates.", "Explain it out loud from start to finish."],
         science: [s1, `Draw and label the key diagram or process for ${what} from memory.`, "Check it against your notes and fix or color the parts you missed.", "Explain each step out loud."],
-        general: [s1, `Write a question and answer for each part of ${what}.`, "Read through them once, then cover the answers and quiz yourself.", "Put a star by anything you missed."]
+        general: [s1, `Write a question and answer for each part of ${what}.`, "Read through them once, then cover the answers and quiz yourself.", "Put a star by anything you missed."],
+        speaking: [s1, items.length ? `Write a few sentences${lang ? ` in ${lang}` : ""} for each of these: ${what}.` : `Write a short answer${lang ? ` in ${lang}` : ""} to each practice question.`, "Say each answer out loud 3 times, then try it without looking.", `Practice asking the questions too${lang === "French" ? ", with both tu and vous" : lang === "Spanish" ? ", with both tú and usted" : ""}.`],
+        listening: [s1, `Have someone read aloud${lang ? ` in ${lang}` : ""} examples of each: ${what}. Or replay your class audio and review games. Write what you hear.`, "Check your spelling and accents.", "Redo any you missed until you get them right."],
+        langwriting: [s1, items.length ? `Practice each of these${lang ? ` in ${lang}` : ""}: ${what}.` : `Write a practice paragraph${lang ? ` in ${lang}` : ""}.`, "Conjugate every verb and make sure adjectives agree.", "Check spelling and accents, then read it out loud."]
       };
-      steps = map[kind] || map.general;
+      const k2 = kind === "writing" && lang ? "langwriting" : kind;
+      steps = map[k2] || map.general;
     } else if (task.kind === "quiz" || task.kind === "review") {
       const quick = task.kind === "review";
       overview = quick
         ? `Quick review of ${name} to keep it fresh.`
-        : `Practice round on ${name}. Pull it from memory, then check. This is what makes it stick.`;
+        : `Practice round on ${name}. Pull it from memory, then check. This is what makes it stick.${partNote}`;
       const practiceStep = {
-        grammar: `Redo the ${what} practice sentences${practice.length ? ` from your ${one(practice)}` : ""} without notes.`,
+        grammar: `Redo the practice sentences for ${items.length ? what : name.toLowerCase()}${practice.length ? ` from your ${one(practice)}` : ""} without notes.`,
         devices: `Cover the definitions. Name each one (${what}) and give an example from memory.`,
         vocab: `Quiz yourself with your flashcards${vocab.length ? ` or your ${one(vocab)}` : ""}. Go through the misses twice.`,
-        literature: `Without notes, answer for ${what}: Who are the main characters? What happens? Why does it matter?`,
+        literature: `Without notes, answer for ${oneWork ? name : what}: Who are the main characters? What happens? Why does it matter?`,
         writing: `Write one practice paragraph in 15 minutes using the ${what}.`,
         math: `Do 6 practice problems on ${what}${practice.length ? ` from your ${one(practice)}` : ""} without notes.`,
         history: `Without notes, explain the causes, events, and results for ${what}.`,
         science: `Without notes, explain ${what} step by step, or redraw the diagram.`,
-        general: `Without notes, answer your own questions about ${what}.`
-      }[kind] || `Without notes, answer your own questions about ${what}.`;
+        general: `Without notes, answer your own questions about ${what}.`,
+        speaking: `Have someone ask you the questions in a random order. Answer${lang ? ` in ${lang}` : ""} without notes, in full sentences.`,
+        listening: `Have someone read aloud new examples (${what}) and write what you hear without looking at your notes.`,
+        langwriting: `Without notes, write a new paragraph${lang ? ` in ${lang}` : ""} in 15 minutes. Then check verbs, agreement, spelling, and accents.`
+      }[kind === "writing" && lang ? "langwriting" : kind] || `Without notes, answer your own questions about ${what}.`;
       steps = quick
         ? [open(check.length ? check : learn), `Look over ${what}. Spend extra time on anything you missed last time.`, practiceStep, "Circle anything that's still shaky."]
-        : [`Close everything. On a blank page, write all you remember about ${what} for 5 minutes.`, `Now open your ${learn.length ? one(learn) : "notes"} and check. Fill in what you missed in a different color.`, practiceStep, "Circle what you missed. That's your focus next time."];
+        : [`Close everything. On a blank page, write all you remember about ${kind === "grammar" && !items.length ? name.toLowerCase() : what} for 5 minutes.`, `Now open your ${learn.length ? one(learn) : "notes"} and check. Fill in what you missed in a different color.`, practiceStep, "Circle what you missed. That's your focus next time."];
     } else if (task.kind === "mix") {
       const others = otherTopics(state, task, 2);
       overview = `Mix it up. Practice ${name} together with other topics, the way the exam will.`;
@@ -330,6 +362,35 @@
     });
 
     const slots = buildSlots(state, startDate);
+    // Fit the plan to the time available: if there are more sessions than open slots, drop extra
+    // rounds for the topics the student feels best about first (every topic keeps its first round,
+    // and every class keeps its practice exam).
+    let trimmed = 0;
+    const gearSlot = kept.some(s => s.kind === "gear") ? 0 : 1;
+    // Check each deadline in order (the earliest exam first): work due by then has to fit by then.
+    const deadlines = Array.from(new Set(tasks.filter(t => !t.done && t.deadline).map(t => t.deadline))).sort();
+    deadlines.forEach(dl => {
+      const cap = slots.filter(sl => sl.date <= dl).length - gearSlot;
+      const due = () => tasks.filter(t => !t.done && t.deadline && t.deadline <= dl);
+      while (due().length > cap) {
+        const removable = due().filter(t => t.kind !== "test" && t.rep > 0 &&
+          !tasks.some(x => x.classId === t.classId && x.topicId === t.topicId && x.rep > t.rep && !x.done));
+        if (!removable.length) break;
+        removable.sort((a, b) => a.weight - b.weight || b.rep - a.rep);
+        tasks.splice(tasks.indexOf(removable[0]), 1);
+        trimmed++;
+      }
+    });
+    const capacity = slots.length - gearSlot;
+    const need = () => tasks.filter(t => !t.done).length;
+    while (need() > capacity) {
+      const removable = tasks.filter(t => !t.done && t.kind !== "test" && t.rep > 0 &&
+        !tasks.some(x => x.classId === t.classId && x.topicId === t.topicId && x.rep > t.rep && !x.done));
+      if (!removable.length) break;
+      removable.sort((a, b) => a.weight - b.weight || b.rep - a.rep);
+      tasks.splice(tasks.indexOf(removable[0]), 1);
+      trimmed++;
+    }
     const sessions = [];
     const place = (slot, task) => {
       slot.task = task;
@@ -397,6 +458,7 @@
         const remaining = tasks.filter(t => t.classId === e.id && !t.done && t.kind !== "test");
         if (!remaining.length) return;
         const eligible = remaining.filter(t => {
+          if (t.deadline && slot.date > t.deadline) return false;     // never after its own deadline (like an in-class part)
           if (t.earliest && t.earliest > slot.date) return false;
           if (t.rep > 0 && !tasks.some(x => x.classId === t.classId && x.topicId === t.topicId && x.rep === t.rep - 1 && x.done)) return false;
           if (sameDay.some(x => x.classId === t.classId && x.topicId === t.topicId)) return false;
@@ -405,6 +467,15 @@
         if (!eligible.length) return;
         const avail = list.slice(i).filter(s => !s.task && s.date <= e.date).length || 1;
         let score = remaining.length / avail;
+        // Work due before an in-class part is more urgent than the rest of the class.
+        const examDeadline = D.addDays(e.date, -1);
+        const early = remaining.filter(t => t.deadline && t.deadline < examDeadline && t.deadline >= slot.date);
+        if (early.length) {
+          const soonest = early.map(t => t.deadline).sort()[0];
+          const urgent = early.filter(t => t.deadline <= D.addDays(soonest, 2)).length;
+          const availEarly = list.slice(i).filter(s => !s.task && s.date <= soonest).length || 1;
+          score = Math.max(score, urgent / availEarly);
+        }
         const todayCount = sameDay.filter(x => x.classId === e.id).length;
         if (score < 1) {
           if (prevTask && prevTask.classId === e.id) score *= 0.5;
@@ -415,7 +486,9 @@
         }
         if (score > bestScore) {
           bestScore = score;
-          eligible.sort((a, b) => a.rep - b.rep || b.weight - a.weight);
+          // Within a week of a deadline, that work goes first; otherwise the usual order (earlier rounds, shakier topics).
+          const soonKey = t => (t.deadline && t.deadline <= D.addDays(slot.date, 7)) ? t.deadline : "9";
+          eligible.sort((a, b) => soonKey(a).localeCompare(soonKey(b)) || a.rep - b.rep || b.weight - a.weight);
           best = eligible[0];
         }
       });
@@ -440,9 +513,32 @@
       spare.forEach((slot, i) => fill(slot, i, spare));
     }
 
+    // 4b) Rescue: a topic's first session (or a practice exam) that didn't fit takes the slot of an
+    //     extra round from any class, before its deadline. That extra round is dropped instead.
+    const essentialLeft = () => tasks.filter(t => !t.done && t.deadline &&
+      (t.kind === "test" || !tasks.some(x => x.done && x.classId === t.classId && x.topicId === t.topicId)));
+    essentialLeft().forEach(t => {
+      const cand = slots.filter(sl => sl.task && sl.date <= t.deadline && (!t.earliest || sl.date >= t.earliest) &&
+        sl.task.kind !== "test" && sl.task.kind !== "gear" && sl.task.rep > 0 &&
+        !(sl.task.classId === t.classId && sl.task.topicId === t.topicId))
+        .sort((a, b) => b.task.rep - a.task.rep || b.date.localeCompare(a.date));
+      const sl = cand[0];
+      if (!sl) return;
+      const old = sl.task;
+      const idx = sessions.findIndex(x => x.date === sl.date && x.start === D.toTime(sl.start));
+      if (idx >= 0) sessions.splice(idx, 1);
+      tasks.splice(tasks.indexOf(old), 1);
+      sl.task = null;
+      place(sl, t);
+      trimmed++;
+    });
+
     // 5) Report anything that didn't fit.
     CFG.EXAMS.forEach(e => {
-      const missing = tasks.filter(t => t.classId === e.id && !t.done);
+      // Extra rounds of a topic that already has a session are dropped quietly; only warn when a
+      // topic's first session or a practice exam can't fit.
+      const missing = tasks.filter(t => t.classId === e.id && !t.done && (t.kind === "test" ||
+        !tasks.some(x => x.done && x.classId === t.classId && x.topicId === t.topicId)));
       if (missing.length) {
         warnings.push(`${missing.length} ${window.Store.className(e.id)} session${missing.length > 1 ? "s" : ""} didn't fit before the exam. Try adding study time, shortening sessions, or removing a busy block.`);
       }

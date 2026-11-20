@@ -262,6 +262,63 @@
     return Number(Object.entries(count).sort((a, b) => b[1] - a[1])[0][0]);
   }
 
+  /* 0) Packets organized by lesson or section ("Topic 1: … / Master Vocabulary / Lesson 1 – …").
+     Each lesson or section becomes a topic, with the packet pages it covers as "Review packet pgs. X-Y". */
+  const COVER_LINE = /^(my\s+)?(name|date|period|teacher|room|proctor|exam proctor|date\/time)\b|_{3,}/i;
+  function pageLines(runs) {
+    const rows = [];
+    runs.slice().sort((a, b) => (b.y - a.y) || (a.x - b.x)).forEach(r => {
+      const last = rows[rows.length - 1];
+      if (last && Math.abs(last.y - r.y) <= 3) last.text += " " + r.text; else rows.push({ y: r.y, text: r.text });
+    });
+    return rows.map(r => clean(r.text));
+  }
+  function layoutTopics(pages) {
+    const lines = pages.map(pageLines);
+    const pgLabel = (a, b) => a === b ? `Review packet pg. ${a}` : `Review packet pgs. ${a}-${b}`;
+    const last = pages.length;
+    const ranges = list => list.map((h, i) => {
+      const next = list[i + 1];
+      let end = last;
+      if (next) end = next.atTop ? Math.max(h.page, next.page - 1) : next.page;
+      return Object.assign({}, h, { end });
+    });
+    // Lessons
+    const lessons = [];
+    lines.forEach((ls, i) => ls.forEach((l, k) => {
+      const m = l.match(/^Lesson\s+\d+\s*[–—:-]\s*(.{3,70})$/i);
+      if (m) lessons.push({ title: capFirst(clean(m[1])), page: i + 1, atTop: k <= 2 });
+    }));
+    if (lessons.length >= 3) {
+      const out = [];
+      const vocabPage = lines.findIndex(ls => ls.some(l => /^master vocabulary\b/i.test(l)));
+      if (vocabPage >= 0) {
+        const groups = lines[vocabPage].map(l => l.match(/^(Topic|Unit|Chapter)\s+\d+\s*[:–—-]\s*(.{3,60})$/i)).filter(Boolean).map(m => `${m[1]} ${m[0].match(/\d+/)[0]}: ${clean(m[2]).replace(/:$/, "")}`);
+        out.push({ text: "Master Vocabulary", details: groups, resources: [`Review packet pg. ${vocabPage + 1} (vocabulary lists)`] });
+      }
+      ranges(lessons).forEach(h => out.push({ text: h.title, details: [], resources: [pgLabel(h.page, h.end)] }));
+      return out;
+    }
+    // Sections on the practice pages (overview pages that only list vocabulary and goals are skipped)
+    const isOverview = ls => ls.some(l => /^(master vocabulary|students (will|should) be able to)/i.test(l)) && ls.filter(l => /^\d{1,3}[.)]\s/.test(l)).length < 2;
+    const seen = new Set();
+    const sections = [];
+    lines.forEach((ls, i) => {
+      if (isOverview(ls)) return;
+      ls.forEach((l, k) => {
+        const m = l.match(/^(?:(Topic|Unit|Chapter)\s+(\d+)\s*[:–—-]\s*([A-Za-z&,' ]{3,50}?)|((?:Science\s+)?Process Skills|Measurement))\s*:?\s*$/i);
+        if (!m) return;
+        const title = m[4] ? capFirst(m[4].replace(/^Science\s+/i, "")) : `${capFirst(m[3].trim())} (${m[1]} ${m[2]})`;
+        const key = title.toLowerCase();
+        if (seen.has(key)) return;
+        seen.add(key);
+        sections.push({ title, page: i + 1, atTop: k <= 3 });
+      });
+    });
+    if (sections.length >= 2) return ranges(sections).map(h => ({ text: h.title, details: [], resources: [pgLabel(h.page, h.end)] }));
+    return [];
+  }
+
   /* 1) Summary table */
   function tableTopics(pages, body) {
     const HEADER = /^(sections?|topics?|units?|content|areas?|skills?|categories|what's on the exam)\b|\bon the exam\b/i;
@@ -436,7 +493,9 @@
       const pages = await pdfPages(file);
       if (!pages.flat().length) return { readable: false, topics: [] };
       const body = bodySize(pages);
-      topics = combine(tableTopics(pages, body), headingTopics(pages, body));
+      const table = tableTopics(pages, body);
+      const layout = table.length >= 2 ? [] : layoutTopics(pages);
+      topics = layout.length >= 2 ? layout : combine(table, headingTopics(pages, body));
       if (!topics.length) topics = topicsFromText(pages.map(rs => rs.sort((a, b) => b.y - a.y).map(r => r.text).join("\n")).join("\n")).map(t => ({ text: t, details: [] }));
     } else if (name.endsWith(".docx")) {
       const d = await docxPages(file);
@@ -447,6 +506,7 @@
     } else {
       return { readable: false, topics: [] };
     }
+    topics = topics.filter(t => t.text && !COVER_LINE.test(t.text));
     return { readable: true, topics: topics.slice(0, 20) };
   }
 
@@ -456,7 +516,7 @@
   }
 
   // Exposed for testing in Node.
-  const _internals = { itemsToRuns, bodySize, tableTopics, headingTopics, combine, subheading };
+  const _internals = { itemsToRuns, bodySize, tableTopics, headingTopics, combine, subheading, layoutTopics };
 
   window.StudyGuide = { extract, topicsFromText, readMindprint, readGuide, readPasted, _internals };
 })();

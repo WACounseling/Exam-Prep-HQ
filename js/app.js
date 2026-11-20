@@ -288,6 +288,7 @@
         <div class="num">${num}</div><div class="unit">${unit}</div>
         <div class="subj">${esc(S.className(e.id))}</div>
         <div class="when">${D.pretty(e.date, false)}</div>
+        ${(() => { const first = S.partsFor(e.id).map(p => p.date).filter(d => d >= today).sort()[0]; return first ? `<div class="part-note">In class from ${D.pretty(first, false)}</div>` : ""; })()}
       </div>`;
     }).join("")}</div>`;
   }
@@ -374,6 +375,22 @@
         ${late ? `<p class="xs" style="margin:6px 0 0;color:var(--red)">You missed this one. No problem: do it now or move it.</p>` : ""}
       </div>
     </div>`;
+  }
+
+  const partIcon = name => /listen/i.test(name) ? "🎧" : /speak/i.test(name) ? "🗣️" : /essay|writ/i.test(name) ? "✍️" : "📝";
+  function partPill(p) {
+    return `<div class="part-pill" style="${colorVars(p.classId)}"><span aria-hidden="true">${partIcon(p.name)}</span><span><b>${esc(S.className(p.classId))} ${esc(p.name.toLowerCase())} exam (${esc(p.where.toLowerCase())})</b>${p.guess ? `<br><span class="small">Pick your period on My classes to get your exact date.</span>` : ""}</span></div>`;
+  }
+  // Pick your class period (only for classes whose in-class exam dates differ by period).
+  function periodPicker(id, small) {
+    const opts = S.periodOptions(id);
+    if (!opts.length) return "";
+    const c = st().classes[id];
+    return `<div class="period-pick"><label for="per-${id}" class="${small ? "small" : ""}">My ${esc(S.className(id))} period</label>
+      <select id="per-${id}" data-bind="classes.${id}.period" data-plan="1" data-rerender="1">
+        <option value="" ${c.period ? "" : "selected"}>Pick one</option>
+        ${opts.map(o => `<option value="${o}" ${c.period === o ? "selected" : ""}>${o} period</option>`).join("")}
+      </select></div>`;
   }
 
   function tutorialPill(t) {
@@ -671,6 +688,17 @@
         <button class="btn small ghost" data-act="breathe">Breathe with me (1 minute)</button>
       </section>`;
     }
+    const partTips = name => /listen/i.test(name) ? ["Bring earbuds and a fully charged iPad", "Do a quick listening warm-up: numbers, dates, and spelled words"]
+      : /speak/i.test(name) ? ["Practice your interview answers out loud one more time", "Have your questions ready to ask, too"]
+      : ["Review your word bank and verb conjugations", "Remember: spelling and accents count"];
+    S.allParts().filter(x => x.date === today || x.date === D.addDays(today, 1)).forEach(x => {
+      const when = x.date === today ? "today" : "tomorrow";
+      html += `<section class="panel day-card part-card" style="${colorVars(x.classId)}" aria-label="${esc(S.className(x.classId))} ${esc(x.name)} ${when}">
+        <h2>${partIcon(x.name)} ${esc(S.className(x.classId))} ${esc(x.name.toLowerCase())} exam in class ${when}</h2>
+        ${list(`part-${x.classId}-${x.name}-${when}`, partTips(x.name))}
+        ${x.guess ? `<p class="small">Not sure this is your day? Pick your period on My classes.</p>` : ""}
+      </section>`;
+    });
     if (examTomorrow) {
       html += `<section class="panel day-card" style="${colorVars(examTomorrow.id)}" aria-labelledby="nb-h">
         <h2 id="nb-h">🌙 ${esc(S.className(examTomorrow.id))} exam tomorrow</h2>
@@ -870,6 +898,7 @@
           <div class="wc-course">${coursePicker(e.id, true)}</div>
           <div class="wc-grade">${gradePicker(e.id, c.grade, `${esc(S.className(e.id))} letter grade`, true)}</div>
           <div class="conf" role="group" aria-label="How you feel about ${esc(S.className(e.id))}">${confButtons("class-conf", c.confidence, `data-class="${e.id}"`)}</div>
+          ${c.course && c.guideFrom === c.course ? `<div class="wc-period">${periodPicker(e.id, true)}</div>` : ""}
           ${c.course ? (S.guideFor(e.id) && c.guideFrom === c.course
             ? `<div class="wc-guide">✓ Study guide ready: ${c.topics.length} topics</div>`
             : S.guideFor(e.id) ? "" : `<div class="wc-guide pending">Your teacher's study guide will appear here when it's added. Nothing to do now.</div>`) : ""}
@@ -1000,6 +1029,7 @@
     const dates = new Set(plan.sessions.map(x => x.date));
     CFG.EXAMS.forEach(e => dates.add(e.date));
     (s.tutorials || []).forEach(t => dates.add(t.date));
+    S.allParts().forEach(p => dates.add(p.date));
 
     const weeks = {};
     Array.from(dates).sort().forEach(d => { const w = D.addDays(d, -D.dow(d)); (weeks[w] = weeks[w] || []).push(d); });
@@ -1015,6 +1045,7 @@
         <div class="day-label"><b>${D.days[D.dow(d)]}</b><span>${D.pretty(d, false)}${d === today ? ", today" : ""}</span></div>
         <div class="sessions">
           ${exams.map(e => `<div class="exam-pill" style="${colorVars(e.id)}">⭐ ${esc(S.className(e.id))} exam (${S.examMinutes()} min)</div>`).join("")}
+          ${S.allParts().filter(p => p.date === d).map(partPill).join("")}
           ${tuts.map(tutorialPill).join("")}
           ${ses.map(sessionChip).join("")}
         </div>
@@ -1299,6 +1330,8 @@
       <div class="class-body">
         <div>
           <div class="field">${coursePicker(e.id, false)}${guideStatus(e.id)}</div>
+          ${periodPicker(e.id) ? `<div class="field">${periodPicker(e.id)}</div>` : ""}
+          ${S.partsFor(e.id).length ? `<div class="parts-list"><b>In-class exam parts</b><ul>${S.partsFor(e.id).map(p => `<li>${partIcon(p.name)} ${esc(p.name)}: ${D.pretty(p.date)}${p.guess ? " (pick your period)" : ""}</li>`).join("")}<li>⭐ Exam day: ${D.pretty(e.date)}</li></ul></div>` : ""}
           <div class="field">${gradePicker(e.id, c.grade, "My letter grade", false)}</div>
           <div class="field"><label id="cl-${e.id}">How I feel about this class</label><div class="conf" role="group" aria-labelledby="cl-${e.id}">${confButtons("class-conf", c.confidence, `data-class="${e.id}"`)}</div></div>
           <label class="drop" data-drop="${e.id}">
@@ -1366,6 +1399,7 @@
       const dow = D.dow(d);
       const items = [];
       CFG.EXAMS.filter(e => e.date === d).forEach(e => items.push({ t: "00:00", html: `<div class="cal-exam" style="${colorVars(e.id)}">⭐ ${esc(S.className(e.id))} exam</div>` }));
+      S.allParts().filter(x => x.date === d).forEach(x => items.push({ t: "00:00", html: `<div class="cal-part" style="${colorVars(x.classId)}">${partIcon(x.name)} ${esc(S.className(x.classId))} ${esc(x.name.toLowerCase())} (in class)</div>` }));
       if ((p.offDates || []).includes(d)) items.push({ t: "00:01", html: `<button class="cal-item off" data-act="off-edit" data-d="${d}">😌 Day off</button>` });
       else if (Number(p.freeDay) === dow) items.push({ t: "00:01", html: `<div class="cal-item off static">😌 Free day</div>` });
       s.busy.filter(b => (b.type === "weekly" && (b.days || []).includes(dow)) || (b.type === "once" && b.date === d)).forEach(b =>

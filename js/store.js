@@ -43,7 +43,7 @@
   function freshState() {
     const classes = {};
     CFG.EXAMS.forEach(e => {
-      classes[e.id] = { course: "", guideFrom: "", grade: "", confidence: 3, topics: [], guides: [], nickname: "", questions: "" };
+      classes[e.id] = { course: "", guideFrom: "", period: "", grade: "", confidence: 3, topics: [], guides: [], nickname: "", questions: "" };
     });
     return {
       version: 1,
@@ -150,11 +150,43 @@
       const c = Store.state.classes[id];
       return c && c.course && window.GUIDES ? window.GUIDES[c.course] || null : null;
     },
+    // "French 8 EP" -> "French"; Literature and other classes -> "".
+    langOf(id) {
+      const c = Store.state.classes[id];
+      const m = c && c.course && c.course.match(/^(French|Spanish|Latin|German|Chinese|Mandarin)/i);
+      return m ? m[1] : "";
+    },
+    // In-class exam parts (listening, essay, speaking) with dates; some depend on the student's period.
+    periodOptions(id) {
+      const g = Store.guideFor(id);
+      const set = new Set();
+      ((g && g.parts) || []).forEach(p => Object.keys(p.dates || {}).forEach(k => set.add(k)));
+      return Array.from(set).sort();
+    },
+    partsFor(id) {
+      const g = Store.guideFor(id), c = Store.state.classes[id];
+      if (!g || !g.parts || !c || c.guideFrom !== c.course) return [];
+      return g.parts.map(p => {
+        let date = p.date || "", guess = false;
+        if (p.dates) {
+          if (c.period && p.dates[c.period]) date = p.dates[c.period];
+          else { date = Object.values(p.dates).sort()[0]; guess = true; }
+        }
+        return { name: p.name, where: p.where || "In class", date, guess, classId: id };
+      }).filter(p => p.date);
+    },
+    partDate(id, name) {
+      const p = Store.partsFor(id).find(x => x.name === name);
+      return p ? p.date : "";
+    },
+    allParts() {
+      return CFG.EXAMS.flatMap(e => Store.partsFor(e.id));
+    },
     // Fill a class's topics from its course's preloaded guide.
     applyGuide(id) {
       const c = Store.state.classes[id], g = Store.guideFor(id);
       if (!g) return false;
-      c.topics = (g.topics || []).map(t => ({ id: uid(), text: t.text, details: (t.details || []).slice(), resources: (t.resources || []).slice(), conf: Number(c.confidence) || 3 }));
+      c.topics = (g.topics || []).map(t => ({ id: uid(), text: t.text, details: (t.details || []).slice(), resources: (t.resources || []).slice(), part: t.part || "", conf: Number(c.confidence) || 3 }));
       c.guideFrom = c.course;
       c.guideVersion = g.updated || "";
       return true;

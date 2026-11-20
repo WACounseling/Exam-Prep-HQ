@@ -25,7 +25,7 @@ window.PREP_CONFIG = {
   // Course choices for each exam. Students pick their class level, not their teacher.
   // Groups marked allGrades show every course to every student. In other groups, courses
   // with "7" or "8" in the name only show for that grade.
-  // The Dec. 18 exam is World Language OR Literature, so both groups are listed there.
+  // The Dec. 17 exam is World Language OR Literature, so both groups are listed there.
   COURSES: {
     english: [{ group: "English", list: ["English 7 CP", "English 7 EP", "English 7 HP", "English 7 TP", "English 8 CP", "English 8 EP", "English 8 HP", "English 8 TP"] }],
     science: [{ group: "Science", list: ["Science 7 CP", "Science 7 EP", "Science 7 HP", "Science 7 TP", "Physical Science 8 CP", "Physical Science 8 EP", "Physical Science 8 HP", "Physical Science 8 TP"] }],
@@ -58,6 +58,6 @@ window.PREP_CONFIG = {
     { id: "science", name: "Science",                      short: "Science",  date: "2026-12-14", color: "#25683f", tint: "#e4f3ea", icon: "🔬" },
     { id: "social",  name: "Social Studies / History",     short: "History",  date: "2026-12-15", color: "#a14f0f", tint: "#fbeadb", icon: "🌎" },
     { id: "math",    name: "Math",                         short: "Math",     date: "2026-12-16", color: "#007380", tint: "#dff3f4", icon: "📐" },
-    { id: "lang",    name: "World Language or Literature", short: "Lang/Lit", date: "2026-12-18", color: "#5a0207", tint: "#f6e3e1", icon: "🗣️" }
+    { id: "lang",    name: "World Language or Literature", short: "Lang/Lit", date: "2026-12-17", color: "#5a0207", tint: "#f6e3e1", icon: "🗣️" }
   ]
 };

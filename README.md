@@ -167,9 +167,36 @@ Students pick their class level, not their teacher. Each course's exam review gu
 
 Within a couple of minutes, students who picked those courses get the topics automatically, even if they set up their plan earlier. Their plan updates on its own, and they see "New study guide loaded." The site always fetches the newest guides.js, so old saved copies don't get in the way. Students who already added their own topics keep them, and see an option to switch to the teacher's guide.
 
-**Tips for best results:** guides that start with a summary table ("Sections on the Exam | Specifics | How to study") read most accurately, and the "How to study" column becomes the page references and materials in every session. The Lee 8th Honors English packet is preloaded as **English 8 HP** as an example.
+**Tips for best results:** the reader understands three packet styles:
+- **A summary table** ("Sections on the Exam | Specifics | How to study"), like the Lee English packet. The "How to study" column becomes the page references and materials in every session.
+- **Lesson-by-lesson packets** ("Topic 1: … / Master Vocabulary / Lesson 1 – …"), like the 7th grade science packets. Each lesson becomes a topic with its packet pages, plus a Master Vocabulary topic.
+- **Section packets** ("Process Skills," "Measurement," "Topic 3 – Energy"), like the 8th grade science packets. Each section becomes a topic with its pages. Split big sections into smaller topics by hand (for example, Speed, Velocity, and Acceleration) so students can rate them separately.
+
+For any style, check the topics and add "Notes," "Practice sheets," or "Old tests and quizzes" to each topic's "How to study" box if the packet doesn't list them. The Lee 8th Honors English packet is preloaded as **English 8 HP** as an example.
 
 **The course list** lives in `COURSES` in `js/config.js`. Math and World Languages show every course to every student. English, Literature, Science, and Social Studies show only courses for the student's grade (based on the 7 or 8 in the course name). To change a list next year, edit those names. Guide entries are matched by exact course name.
+
+### In-class exam parts (world languages)
+
+Some exams happen in parts. For example, French and Spanish listening, essay, and speaking sections take place in class during the week of Dec. 7, before the Dec. 17 exam day.
+
+- In the manager, add each part under **In-class exam parts** (name and date). If the date depends on class period, check **Different dates by period** and fill in each period's date.
+- For each topic, choose **Practice for:** a part (for example, the speaking topic practices for "Speaking"). Those topics are planned to finish the day before that part. Everything else keeps the exam-day deadline.
+- Students whose dates depend on their period see a **My period** menu, in setup and on My classes. Until they pick one, the site uses the earliest date and reminds them to choose.
+- Students see each part on Today (the day before and the day of), My Study Plan, My Weekly Schedule, the countdown ("In class from Dec. 8"), the printed plan, the exam-week page, and calendar exports.
+
+### When there isn't enough time
+
+If a student's plan needs more sessions than their study time allows, the plan fits itself first, exam by exam (the earliest exam first): it drops extra rounds for the topics they feel best about. Every topic keeps at least one session, and every class keeps its practice exam. If a topic's first session still doesn't fit before its exam, it takes the place of an extra round from another class. A warning appears only if even that doesn't fit.
+
+### Guides loaded so far (23 of 54 courses)
+
+- **English (all 8):** 7 CP, 7 EP, 7 TP, 7 HP, 8 CP, 8 EP, 8 TP, 8 HP
+- **Science (7 of 8):** Science 7 CP, EP, TP, HP; Physical Science 8 CP, EP, TP. *Still needed: Physical Science 8 HP*
+- **World Languages (all 8):** French 1 HP, 7 EP, 8 EP, 8 HP; Spanish 1 HP, 7 EP, 8 EP, 8 HP. French and Spanish 8 include in-class exam parts. *Spanish 7 EP and 1 HP: in-class part dates still needed*
+- **Still needed:** all Mathematics (10), Social Studies (8), and Literature (6) courses
+
+English sessions point to review packet sections (Word files have no fixed page numbers) plus the exact *Writing with Power* and *Holt Handbook* pages and exercises listed in each packet.
 
 ## Grades
 

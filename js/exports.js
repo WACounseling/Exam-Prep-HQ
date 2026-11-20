@@ -18,7 +18,8 @@
     sessions().forEach(s => (days[s.date] = days[s.date] || []).push(s));
     CFG.EXAMS.forEach(e => (days[e.date] = days[e.date] || []));
     tutorials().forEach(t => (days[t.date] = days[t.date] || []));
-    return Object.keys(days).sort().map(d => ({ date: d, sessions: days[d], exams: CFG.EXAMS.filter(e => e.date === d), tutorials: tutorials().filter(t => t.date === d) }));
+    S.allParts().forEach(p => (days[p.date] = days[p.date] || []));
+    return Object.keys(days).sort().map(d => ({ date: d, sessions: days[d], exams: CFG.EXAMS.filter(e => e.date === d), tutorials: tutorials().filter(t => t.date === d), parts: S.allParts().filter(p => p.date === d) }));
   }
 
   function tutorials() { return (S.state.tutorials || []).slice().sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start)); }
@@ -51,13 +52,15 @@
         `<tr><td style="border:1px solid #ccc;padding:6px;">⭐</td><td style="border:1px solid #ccc;padding:6px;"><b>${esc(S.className(e.id))} exam</b></td><td style="border:1px solid #ccc;padding:6px;">${mins} minutes. You've got this.</td></tr>`).join("");
       const tuts = day.tutorials.map(t =>
         `<tr><td style="border:1px solid #ccc;padding:6px;white-space:nowrap;">☐ ${D.clock(t.start)}</td><td style="border:1px solid #ccc;padding:6px;border-left:6px solid #ffc513;"><b>🙋 ${esc(S.className(t.classId))} tutorial</b></td><td style="border:1px solid #ccc;padding:6px;">Ask about: ${esc(askTopics(t.classId).slice(0, 3).join("; ") || "your study guide and 2 or 3 specific questions")}</td></tr>`).join("");
+      const parts = (day.parts || []).map(p =>
+        `<tr><td style="border:1px solid #ccc;padding:6px;">⭐</td><td style="border:1px solid #ccc;padding:6px;"><b>${esc(S.className(p.classId))} ${esc(p.name.toLowerCase())} exam</b></td><td style="border:1px solid #ccc;padding:6px;">${esc(p.where)}${p.guess ? " (check your period's date)" : ""}</td></tr>`).join("");
       const busy = busyFor(day.date).map(b =>
         `<tr><td style="border:1px solid #ccc;padding:6px;color:#555;">${D.clock(b.start)}</td><td style="border:1px solid #ccc;padding:6px;color:#555;" colspan="2">${esc(b.label || "Busy")}</td></tr>`).join("");
       const ses = day.sessions.map(s =>
         `<tr><td style="border:1px solid #ccc;padding:6px;white-space:nowrap;">☐ ${D.clock(s.start)}</td><td style="border:1px solid #ccc;padding:6px;border-left:6px solid ${colorFor(s.classId)};"><b>${esc(s.title)}</b><br>${esc(s.topicText)}</td><td style="border:1px solid #ccc;padding:6px;">${esc(s.tip)}${(s.resources || []).length ? `<br><b>Use:</b> ${esc(s.resources.slice(0, 3).join("; "))}` : ""}</td></tr>`).join("");
-      if (!exams && !ses && !tuts) return "";
+      if (!exams && !ses && !tuts && !parts) return "";
       return `<h3 style="font-family:Montserrat,Arial,sans-serif;color:#9d2235;margin:18px 0 6px;">${D.pretty(day.date)}</h3>
-        <table style="border-collapse:collapse;width:100%;font-family:Montserrat,Arial,sans-serif;font-size:11pt;">${exams}${tuts}${busy}${ses}</table>`;
+        <table style="border-collapse:collapse;width:100%;font-family:Montserrat,Arial,sans-serif;font-size:11pt;">${exams}${parts}${tuts}${busy}${ses}</table>`;
     }).join("");
 
     const examList = CFG.EXAMS.map(e => `<li>${esc(S.className(e.id))}: ${D.pretty(e.date)}</li>`).join("");
@@ -82,7 +85,8 @@
       const test = sessions().find(x => x.classId === e.id && x.kind === "test");
       const tuts = (st.tutorials || []).filter(t => t.classId === e.id && t.date <= e.date).map(t => D.pretty(t.date));
       const g = S.guideFor(e.id);
-      return `<tr><td ${td}><b>${esc(S.className(e.id))}</b>${g && g.bring ? `<br><span style="font-size:9.5pt;">Bring: ${esc(g.bring)}</span>` : ""}</td><td ${td}>${D.pretty(e.date)}${g && g.examTime ? `<br>${esc(g.examTime)}` : ""}</td>
+      const parts = S.partsFor(e.id);
+      return `<tr><td ${td}><b>${esc(S.className(e.id))}</b>${g && g.bring ? `<br><span style="font-size:9.5pt;">Bring: ${esc(g.bring)}</span>` : ""}</td><td ${td}>${D.pretty(e.date)}${g && g.examTime ? `<br>${esc(g.examTime)}` : ""}${parts.length ? `<br><span style="font-size:9.5pt;">In class: ${esc(parts.map(p => `${p.name} ${D.pretty(p.date, false)}`).join("; "))}</span>` : ""}</td>
         <td ${td}>${test ? `${D.pretty(test.date, false)}, ${D.clock(test.start)}` : "The day before"}</td>
         <td ${td}>${tuts.length ? esc(tuts.join("; ")) : "None planned"}</td>
         <td ${td}>☐ Packed &nbsp; ☐ Slept</td></tr>`;
@@ -150,6 +154,11 @@
         "BEGIN:VALARM", "TRIGGER:-PT15M", "ACTION:DISPLAY", "DESCRIPTION:Tutorial soon", "END:VALARM",
         "END:VEVENT"].join("\r\n"));
     });
+    S.allParts().forEach(p => {
+      ev.push(["BEGIN:VEVENT", `UID:part-${p.classId}-${p.name.replace(/\W+/g, "")}-${p.date}@examprephq`, `DTSTAMP:${stamp}`,
+        `DTSTART;VALUE=DATE:${p.date.replace(/-/g, "")}`, `DTEND;VALUE=DATE:${D.addDays(p.date, 1).replace(/-/g, "")}`,
+        `SUMMARY:${fold("⭐ " + S.className(p.classId) + " " + p.name.toLowerCase() + " exam (in class)")}`, "END:VEVENT"].join("\r\n"));
+    });
     CFG.EXAMS.forEach(e => {
       ev.push(["BEGIN:VEVENT", `UID:exam-${e.id}-${e.date}@examprephq`, `DTSTAMP:${stamp}`,
         `DTSTART;VALUE=DATE:${e.date.replace(/-/g, "")}`, `DTEND;VALUE=DATE:${D.addDays(e.date, 1).replace(/-/g, "")}`,
@@ -178,6 +187,13 @@
       description: `Ask about: ${askTopics(t.classId).slice(0, 3).join("; ") || "your study guide and 2 or 3 specific questions"}`,
       start: at(t.date, t.start), end: at(t.date, t.end), colorId: "5",
       reminders: { useDefault: false, overrides: [{ method: "popup", minutes: 15 }, { method: "popup", minutes: 12 * 60 }] }
+    }));
+    S.allParts().filter(p => p.date >= today).forEach(p => out.push({
+      summary: `⭐ ${S.className(p.classId)} ${p.name.toLowerCase()} exam (in class)`,
+      description: "Part of your exam happens in class today. Bring a fully charged iPad and anything your teacher asked for.",
+      start: { date: p.date }, end: { date: D.addDays(p.date, 1) },
+      colorId: GCAL_COLORS[p.classId] || "8",
+      reminders: { useDefault: false, overrides: [{ method: "popup", minutes: 6 * 60 }] }
     }));
     CFG.EXAMS.filter(e => e.date >= today).forEach(e => out.push({
       summary: `⭐ ${S.className(e.id)} exam (${S.examMinutes()} min)`,
