@@ -31,7 +31,6 @@ A study-planning website for Woodward Academy 7th and 8th graders. Students add 
   - **🔁 Make up missed sessions:** shows how many were missed and moves them to new times.
 - **Step-by-step study sessions:** each session has a one-line overview, then numbered steps that name the exact parts of the study guide being covered and send students back to the teacher's materials. For example: "1. Open your review sheets pgs. 2-5 (also helpful: slideshows). 2. Read the rule for each: Participles, Gerunds, and Infinitives. 3. On a fresh page, redo the practice sentences…" Steps change with the subject and the round (build it, quiz yourself, mix and teach, quick review, practice exam). If a guide has a PDF link, sessions show **Open the study guide**.
 - **Quick day buttons** for repeating activities: Mon & Wed, Tue & Thu, Mon, Wed & Fri, or Every weekday, plus individual days. "Just once" adds a one-day activity.
-- **Missed sessions** appear at the top of Today with **Do it now** and **Move to a new time** buttons.
 - **"Can't do it? Move it"** on every session asks "Later today" or "Another day," then finds the next open time.
 - **➕ Add a session today** (on Today): one tap adds a quick practice session, starting now, on the shakiest topic for the soonest exam.
 - **One-tap tutorial suggestions** on Today, for example "Science feels shaky. Add a tutorial?" with the next open school day already chosen.
@@ -197,6 +196,16 @@ If a student's plan needs more sessions than their study time allows, the plan f
 - **Still needed:** all Mathematics (10), Social Studies (8), and Literature (6) courses
 
 English sessions point to review packet sections (Word files have no fixed page numbers) plus the exact *Writing with Power* and *Holt Handbook* pages and exercises listed in each packet.
+
+### Missed sessions, short on time, and after exams
+
+- **Missed sessions** appear in a **Missed** group (on My Study Plan) and at the top of Today. Each one offers **Do it now**, **Move to a new time**, or **Fit it into my next session**. That last option adds a 5-minute review of the missed material to that class's next session, so nothing new is added to the schedule. **Make up missed sessions** offers both choices for all missed sessions at once. Everything can be undone.
+- **Short on time mode** turns on by itself when an exam is 4 days away or less, or when first sessions won't all fit. The plan skips the gear check, combines up to 3 smaller topics into one **focus review**, and turns first rounds near an exam into focus reviews ("find what you don't know yet and practice just that"). Instead of warnings, students see one calm note with an **Add more study time** button (up to 3 sessions on school days, longer study windows, or studying on their free day).
+- **Exams that are over** drop out of the plan. After the last exam, Today says "You did it" with a short reflection prompt.
+- **"Add a session today"** is hidden after the day's study window (or 9 p.m.).
+- **My Study Plan and My Weekly Schedule** show the **next 7 days** starting today, then later days in 7-day blocks.
+- **Session cards on Today** show the overview. "See the steps" opens the rest, and the full steps also show on Start and the details screen.
+- **Teacher guide updates:** if a guide in `guides.js` has a newer `updated` date than the one a student loaded, Today shows "Your teacher updated the … study guide." One tap updates their topics and keeps their face ratings.
 
 ## Grades
 

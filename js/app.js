@@ -121,8 +121,9 @@
       wrap.appendChild(p);
     }
     document.body.appendChild(wrap);
-    setTimeout(() => wrap.remove(), 2300);
+    setTimeout(() => wrap.remove(), 1800);
   }
+  window.addEventListener("hashchange", () => document.querySelectorAll(".confetti").forEach(c => c.remove()));
 
   function openModal(html) { const m = $("#modal"); m.innerHTML = html; if (!m.open) m.showModal(); }
   function closeModal() { clearInterval(breatheTimer); const m = $("#modal"); if (m.open) m.close(); }
@@ -255,6 +256,7 @@
     return `<label class="${small ? "sr-only" : ""}" for="course-${id}">${small ? `${esc(S.exam(id).name)} class` : "My class"}</label>
       <select id="course-${id}" class="course-select" data-course="${id}">
         <option value="" ${c.course ? "" : "selected"}>Pick your class</option>
+        ${Object.keys(window.GUIDES || {}).length ? `<option disabled>✓ = study guide ready</option>` : ""}
         ${c.course && !groups.some(g => g.list.includes(c.course)) ? opt(c.course) : ""}
         ${groups.length > 1 ? groups.map(g => `<optgroup label="${esc(g.group)}">${g.list.map(opt).join("")}</optgroup>`).join("") : (groups[0] ? groups[0].list.map(opt).join("") : "")}
       </select>`;
@@ -299,19 +301,20 @@
     const c = st().classes[x.classId];
     const guideBtn = g && g.file && c && c.guideFrom === c.course ? `<a class="btn small ghost guide-btn" href="${esc(g.file)}" target="_blank" rel="noopener">📄 Open the study guide</a>` : "";
     if (!x.steps || !x.steps.length) return `<p class="s-tip">${esc(x.tip)} ${speakBtn(x.tip)}</p>${guideBtn}`;
+    const list = `<ol class="s-steps ${opts.compact ? "compact" : ""}">${x.steps.map(t => `<li>${esc(t)}</li>`).join("")}</ol>`;
     return `<p class="s-overview">${esc(x.overview)} ${speakBtn(x.tip)}</p>
-      <ol class="s-steps ${opts.compact ? "compact" : ""}">${x.steps.map(t => `<li>${esc(t)}</li>`).join("")}</ol>
+      ${opts.compact ? `<details class="steps-more"><summary>See the ${x.steps.length} steps</summary>${list}</details>` : list}
       ${x.extra ? `<p class="s-extra"><b>Tip:</b> ${esc(x.extra)}</p>` : ""}
       ${guideBtn}`;
   }
 
   // Short card for lists (My Study Plan, calendar): tap to open details.
   function sessionChip(x) {
-    const late = !x.done && x.date < D.today();
+    const late = !x.done && !x.folded && x.date < D.today();
     return `<div class="session compact ${x.done ? "done" : ""}" style="${colorVars(x.classId)}">
       <button class="check" data-act="toggle-session" data-id="${x.id}" aria-pressed="${!!x.done}" aria-label="Mark ${esc(x.title)} done">${x.done ? "✓" : ""}</button>
       <button class="s-open" data-act="details" data-id="${x.id}">
-        <span class="time">${D.clock(x.start)}${late ? ' <span class="late-tag">Missed</span>' : ""}</span>
+        <span class="time">${D.clock(x.start)}${late ? ' <span class="late-tag">Missed</span>' : ""}${x.folded ? ' <span class="done-tag">Fitted in</span>' : ""}</span>
         <span class="s-title">${esc(x.title)}</span>
         <span class="s-topic">${esc(x.topicText)}</span>
         <span class="chev" aria-hidden="true">›</span>
@@ -332,7 +335,7 @@
   function sessionDetails(id) {
     const x = st().plan && st().plan.sessions.find(y => y.id === id);
     if (!x) return;
-    const late = !x.done && x.date < D.today();
+    const late = !x.done && !x.folded && x.date < D.today();
     const res = x.resources || [];
     const inClass = x.classId !== "general";
     openModal(`
@@ -350,7 +353,8 @@
         </div>
         <div class="modal-foot d-actions">
           ${!x.done ? `<button class="btn" data-act="details-start" data-id="${x.id}">▶ ${late ? "Do it now" : "Start"}</button>
-            <button class="btn ghost" data-act="details-move" data-id="${x.id}">Move it</button>` : ""}
+            <button class="btn ghost" data-act="details-move" data-id="${x.id}">Move it</button>
+            ${late ? `<button class="btn ghost" data-act="fold-session" data-id="${x.id}">Fit into next session</button>` : ""}` : ""}
           <button class="btn ghost" data-act="details-done" data-id="${x.id}">${x.done ? "Mark not done" : "✓ Mark done"}</button>
           ${inClass && !x.done ? `<button class="linkish small" data-act="details-stuck" data-id="${x.id}">🙋 Stuck? Ask my teacher</button>` : ""}
         </div>
@@ -358,7 +362,7 @@
   }
 
   function sessionCard(x, opts = {}) {
-    const late = !x.done && x.date < D.today();
+    const late = !x.done && !x.folded && x.date < D.today();
     const res = (x.resources || []).slice(0, 3);
     const startable = !x.done && x.date <= D.today();
     return `<div class="session ${x.done ? "done" : ""}" style="${colorVars(x.classId)}">
@@ -371,8 +375,10 @@
         ${!x.done ? `<div class="s-actions">
           ${startable || opts.big ? `<button class="btn small start-btn" data-act="focus" data-id="${x.id}">▶ ${late ? "Do it now" : "Start"}</button>` : ""}
           <button class="linkish small" data-act="move-session" data-id="${x.id}">${late ? "Move to a new time" : "Can't do it? Move it"}</button>
+          ${late ? `<button class="linkish small" data-act="fold-session" data-id="${x.id}">Fit it into my next ${esc(S.className(x.classId))} session</button>` : ""}
         </div>` : ""}
-        ${late ? `<p class="xs" style="margin:6px 0 0;color:var(--red)">You missed this one. No problem: do it now or move it.</p>` : ""}
+
+        ${x.folded ? `<p class="xs muted" style="margin:6px 0 0">Fitted into your next ${esc(S.className(x.classId))} session.</p>` : ""}
       </div>
     </div>`;
   }
@@ -570,6 +576,22 @@
     const firstExam = CFG.EXAMS.map(e => e.date).sort()[0];
     const toFirst = D.diff(today, firstExam);
 
+    const lastExam = CFG.EXAMS.map(e => e.date).sort().slice(-1)[0];
+    if (s.plan && today > lastExam) {
+      const done = s.plan.sessions.filter(x => x.done).length;
+      return `
+        <section class="hero brick">
+          <h1>You did it${s.profile.name ? `, ${esc(s.profile.name)}` : ""}. 🎉</h1>
+          <p>Exams are over. ${done ? `You finished ${done} study session${done === 1 ? "" : "s"}. ` : ""}Take a real break: you earned it.</p>
+          ${gates(true)}
+        </section>
+        <section class="panel" style="margin-top:20px">
+          <h2 class="h3">Before you forget</h2>
+          <p>What helped you most this time: spaced sessions, practice exams, tutorials, or something else? Remembering it makes next semester easier.</p>
+          <p class="small muted">Ready for next semester? Tap <b>Start over</b> at the top when it's time.</p>
+        </section>`;
+    }
+
     if (!s.plan) {
       return `
         <section class="hero brick">
@@ -595,7 +617,7 @@
     let todayBody;
     const missedList = missedSessions();
     const missedHTML = missedList.length ? `<div class="missed-box"><h3 class="h4">Missed ${missedList.length === 1 ? "session" : `sessions (${missedList.length})`}</h3>
-      <p class="xs muted" style="margin:-4px 0 8px">Do it now, move it, or tap “Make up missed sessions” to move them all.</p>
+      <p class="xs muted" style="margin:-4px 0 8px">No problem. Do it now, move it to a new time, or fit it into your next session for that class.</p>
       <div class="sessions">${missedList.slice(0, 2).map(x => sessionCard(x)).join("")}</div></div>` : "";
     if (todays.length) {
       todayBody = `${allDone ? `<p class="win">🎉 You're done for today${name}. Go enjoy your evening.</p>` : ""}<div class="sessions">${todays.map(sessionCard).join("")}</div>`;
@@ -614,6 +636,7 @@
       </section>
 
       ${tourCard()}
+      ${st().plan && st().plan.note ? planNote(true) : ""}
       ${s.planStale ? `<div class="warn" style="margin-top:18px">You changed some things. <button class="btn small" data-act="build">Update my plan</button></div>` : ""}
       ${catchUpBanner()}
       ${examDayCard()}
@@ -624,8 +647,10 @@
           ${tutsToday.map(tutorialPill).join("")}
           ${missedHTML}
           ${todayBody}
-          ${CFG.EXAMS.some(e => e.date > today) ? `<button class="btn ghost add-today" data-act="add-today">➕ Add a session today</button>
-          <p class="xs muted" style="margin:6px 0 0">Have some time? Get one more quick practice session on your shakiest topic.</p>` : ""}
+          ${CFG.EXAMS.some(e => e.date > today) ? (studyDayOver()
+            ? `<p class="xs muted add-today-note">🌙 Rest up. You can add an extra session tomorrow.</p>`
+            : `<button class="btn ghost add-today" data-act="add-today">➕ Add a session today</button>
+          <p class="xs muted" style="margin:6px 0 0">Have some time? Get one more quick practice session on your shakiest topic.</p>`) : ""}
         </section>
 
         <div class="stack">
@@ -659,7 +684,7 @@
 
   function missedSessions() {
     const s = st();
-    return s.plan ? s.plan.sessions.filter(x => !x.done && x.date < D.today()) : [];
+    return s.plan ? s.plan.sessions.filter(x => !x.done && !x.folded && x.date < D.today()) : [];
   }
 
   function catchUpBanner() {
@@ -724,7 +749,16 @@
   }
   let pendingBackup = null;
 
+  // After today's study window (or 9 p.m.), don't offer extra sessions.
+  function studyDayOver() {
+    const p = st().prefs, now = new Date();
+    const end = D.isWeekend(D.today()) ? p.weekendEnd : p.weekdayEnd;
+    const mins = now.getHours() * 60 + now.getMinutes();
+    return mins >= Math.min(D.toMin(end || "20:30") - 20, 21 * 60);
+  }
+
   function addToday() {
+    if (studyDayOver()) { toast("It's late. Rest up and add one tomorrow."); return; }
     const s = st();
     const x = window.Planner.extraSession(s);
     if (!x) { toast("Nothing to add right now. You're in good shape."); return; }
@@ -828,7 +862,14 @@
   function nudges() {
     const s = st();
     const list = [];
-    const missing = CFG.EXAMS.filter(e => !s.classes[e.id].topics.length && e.date >= D.today()).sort((a, b) => a.date.localeCompare(b.date));
+    // Teacher updated a guide since this student loaded it.
+    CFG.EXAMS.forEach(e => {
+      const c = s.classes[e.id], g = S.guideFor(e.id);
+      if (g && c.guideFrom === c.course && g.updated && c.guideVersion && g.updated > c.guideVersion && e.date > D.today())
+        list.unshift({ e: "🔄", t: `Your teacher updated the ${c.course} study guide`, d: "Tap to update your topics. Your face ratings stay.", act: "update-guide", data: `data-class="${e.id}"` });
+    });
+    // Only suggest uploading when no class level is picked (picked levels get their guide automatically).
+    const missing = CFG.EXAMS.filter(e => !s.classes[e.id].topics.length && !s.classes[e.id].course && e.date >= D.today()).sort((a, b) => a.date.localeCompare(b.date));
     const noCourse = CFG.EXAMS.filter(e => !s.classes[e.id].course && e.date >= D.today());
     if (noCourse.length) list.push({ e: "📚", t: `Pick your ${noCourse[0].name} class`, d: "If its study guide is loaded, your topics fill in automatically.", href: "#classes", open: noCourse[0].id });
     else if (missing.length) list.push({ e: "📄", t: `Add your ${S.className(missing[0].id)} study guide`, d: `So your plan covers exactly what's on that exam.${missing.length > 1 ? ` (${missing.length - 1} more after that)` : ""}`, href: "#classes", open: missing[0].id });
@@ -1031,6 +1072,24 @@
     (s.tutorials || []).forEach(t => dates.add(t.date));
     S.allParts().forEach(p => dates.add(p.date));
 
+    // Next 7 days starting today; then the rest grouped by week; earlier days folded away.
+    const all = Array.from(dates).sort();
+    const end7 = D.addDays(today, 6);
+    const pastDays = all.filter(d => d < today);
+    const missedDays = pastDays.filter(d => plan.sessions.some(x => x.date === d && !x.done && !x.folded));
+    const nextDays = all.filter(d => d >= today && d <= end7);
+    // After the next 7 days, keep going in 7-day blocks with real dates.
+    const later = {};
+    all.filter(d => d > end7).forEach(d => { const k = D.addDays(today, 7 * Math.floor(D.diff(today, d) / 7)); (later[k] = later[k] || []).push(d); });
+    const laterWeeks = Object.keys(later).sort();
+    const groupHTML = (label, days, open) => {
+      const n = days.reduce((c, d) => c + plan.sessions.filter(x => x.date === d).length, 0);
+      const done = days.reduce((c, d) => c + plan.sessions.filter(x => x.date === d && x.done).length, 0);
+      return `<details class="week" ${open ? "open" : ""}>
+        <summary><h2 class="h3">${label}</h2><span class="small muted">${done} of ${n} done</span></summary>
+        ${days.length ? days.map(dayHTML).join("") : `<p class="small muted" style="padding:8px 4px">Nothing scheduled.</p>`}
+      </details>`;
+    };
     const weeks = {};
     Array.from(dates).sort().forEach(d => { const w = D.addDays(d, -D.dow(d)); (weeks[w] = weeks[w] || []).push(d); });
     const weekKeys = Object.keys(weeks).sort();
@@ -1067,9 +1126,11 @@
       ${s.planStale ? `<div class="warn">You changed some things. Tap <b>Update my plan</b> to catch up. Finished sessions stay checked off.</div>` : ""}
       ${catchUpBanner()}
       ${calendarStale() ? `<div class="warn">Your Google Calendar has an old version. <button class="linkish" data-act="exp-gcal">Update it</button></div>` : ""}
-      ${plan.warnings.map(w => `<div class="warn">${esc(w)}</div>`).join("")}
-      ${past.length ? `<p class="no-print"><button class="linkish small" data-act="toggle-past">${ui.showPast ? "Hide" : "Show"} past weeks</button></p>${ui.showPast ? past.map(w => weekHTML(w, false)).join("") : ""}` : ""}
-      ${current.map((w, i) => weekHTML(w, i === 0)).join("")}
+      ${planNote()}
+      ${missedDays.length ? groupHTML("Missed", missedDays, true) : ""}
+      ${pastDays.length ? `<p class="no-print"><button class="linkish small" data-act="toggle-past">${ui.showPast ? "Hide" : "Show"} earlier days</button></p>${ui.showPast ? groupHTML("Earlier", pastDays, false) : ""}` : ""}
+      ${groupHTML("Next 7 days", nextDays, true)}
+      ${laterWeeks.map(w => groupHTML(`${D.pretty(w, false)} to ${D.pretty(D.addDays(w, 6), false)}`, later[w], false)).join("")}
       <p class="small muted no-print" style="margin-top:30px">Want to start over? <button class="linkish" data-act="start-over">Start over</button></p>`;
   }
 
@@ -1112,8 +1173,72 @@
   }
 
   // Make up missed sessions: reschedule them, or explain how to move one ahead of time.
+  // Fold missed sessions into the next session of the same class (nothing new is added to the plan).
+  function foldSessions(ids) {
+    const s = st();
+    const snap = JSON.stringify(s);
+    const xs = s.plan.sessions.filter(x => ids.includes(x.id));
+    xs.forEach(x => { x.folded = true; x.foldedAt = D.today(); });
+    rebuildQuiet();
+    const targets = st().plan.sessions.filter(y => (y.also || []).length && y.date >= D.today());
+    closeModal();
+    render();
+    const one = xs.length === 1 && targets.find(t => t.classId === xs[0].classId);
+    toast(one ? `Added to your ${S.className(one.classId)} session on ${D.pretty(one.date)}` : `Added to your next sessions for ${Array.from(new Set(xs.map(x => S.className(x.classId)))).join(", ")}`, () => {
+      clearTimeout(autoTimer); S.replace(JSON.parse(snap)); S.save({ now: true }); render(); toast("Undone.");
+    });
+  }
+
+  function planNote(compact) {
+    const plan = st().plan;
+    if (!plan) return "";
+    const w = (plan.warnings || []).map(x => `<div class="warn">${esc(x)} <button class="btn small" data-act="more-time">Add more study time</button></div>`).join("");
+    const n = plan.note ? `<div class="calm-note ${compact ? "compact" : ""}"><span aria-hidden="true">🎯</span><span>${esc(plan.note)}${compact ? "" : " Want more practice?"} <button class="linkish" data-act="more-time">Add more study time</button></span></div>` : "";
+    return w + n;
+  }
+
+  function moreTimeModal() {
+    const p = st().prefs;
+    const opts = [
+      ["three", "Up to 3 sessions on school days", "Right now: up to " + (p.maxWeekday || 2), Number(p.maxWeekday) >= 3],
+      ["weekday", "Study after tutorials and after dinner", "School days from 4 to 8:30 p.m.", p.weekdayStart <= "16:00" && p.weekdayEnd >= "20:30"],
+      ["weekend", "Use weekend mornings and afternoons", "Weekends from 10 a.m. to 5 p.m.", p.weekendStart <= "10:00" && p.weekendEnd >= "17:00"],
+      ["freeday", "Study on my free day too", "Your free day is " + (p.freeDay === "" || p.freeDay == null ? "off already" : D.days[Number(p.freeDay)]), p.freeDay === "" || p.freeDay == null]
+    ];
+    openModal(`<div class="modal-body"><h3>Add more study time</h3>
+      <p class="muted">Tap one. Your plan updates right away, and you can change it back on My Weekly Schedule.</p>
+      <div class="save-options one-col">${opts.map(([k, t, d, on]) => `<button class="dl" data-act="more-time-set" data-opt="${k}" ${on ? "disabled" : ""}><span class="e" aria-hidden="true">${on ? "✓" : "➕"}</span><b>${t}</b><span>${on ? "Already on" : d}</span></button>`).join("")}</div>
+      <p class="small muted">Rest matters too. Sleep helps you remember what you studied.</p></div>
+      <div class="modal-foot"><button class="btn ghost" data-act="modal-close">Done</button></div>`);
+  }
+  function applyMoreTime(opt) {
+    const s = st(), p = s.prefs;
+    const before = s.plan ? s.plan.sessions.filter(x => !x.done && x.date >= D.today()).length : 0;
+    undoable("Study time added.", () => {
+      if (opt === "three") p.maxWeekday = 3;
+      if (opt === "weekday") { p.weekdayStart = "16:00"; p.weekdayEnd = "20:30"; }
+      if (opt === "weekend") { p.weekendStart = "10:00"; p.weekendEnd = "17:00"; }
+      if (opt === "freeday") p.freeDay = "";
+      rebuildQuiet();
+    });
+    const after = st().plan.sessions.filter(x => !x.done && x.date >= D.today()).length;
+    moreTimeModal();
+    render();
+    toast(after > before ? `Study time added: ${after - before} more session${after - before === 1 ? "" : "s"} fit now.` : "Study time added.");
+  }
+
   function makeUp() {
-    if (missedSessions().length) { catchUp(); return; }
+    const missed = missedSessions();
+    if (missed.length) {
+      openModal(`<div class="modal-body"><h3>Make up ${missed.length} missed session${missed.length === 1 ? "" : "s"}</h3>
+        <p class="muted">No problem. Pick what works for you.</p>
+        <div class="save-options one-col">
+          <button class="dl" data-act="catch-up"><span class="e" aria-hidden="true">📆</span><b>Move them to new times</b><span>Each one gets its own new session.</span></button>
+          <button class="dl" data-act="fold-all"><span class="e" aria-hidden="true">➕</span><b>Fit them into my next sessions</b><span>Each class's next session gets a short extra review. Nothing new is added to your schedule.</span></button>
+        </div></div>
+        <div class="modal-foot"><button class="btn ghost" data-act="modal-close">Cancel</button></div>`);
+      return;
+    }
     openModal(`<div class="modal-body"><h3>You're all caught up 👍</h3>
       <p>You don't have any missed sessions.</p>
       <p><b>Can't do a session?</b> Tap <b>Move it</b> on that session and it moves to your next open time. Your finished sessions always stay checked off.</p></div>
@@ -1271,7 +1396,7 @@
   function pageClasses() {
     const s = st();
     return `
-      <div class="page-head"><h1>My classes</h1><p>Add your study guide topics so your plan knows exactly what to study. Tap a class to open it.</p></div>
+      <div class="page-head"><h1>My classes</h1><p>Tap a class to see its topics, rate how each one feels, or change your class level. Study guides load on their own.</p></div>
       <div class="stack">${CFG.EXAMS.map(e => classCard(e)).join("")}</div>
       ${s.plan && s.planStale ? `<div class="btn-row" style="margin-top:20px"><button class="btn big" data-act="build">Update my plan</button></div>` : ""}`;
   }
@@ -1388,11 +1513,11 @@
     const today = D.today();
     const thisWeek = D.addDays(today, -D.dow(today));
     const lastExam = CFG.EXAMS.map(e => e.date).sort().slice(-1)[0];
-    const maxOffset = Math.max(0, Math.floor(D.diff(thisWeek, D.addDays(lastExam, -D.dow(lastExam))) / 7));
+    const maxOffset = Math.max(0, Math.floor(D.diff(today, lastExam) / 7));
     ui.weekOffset = Math.min(Math.max(ui.weekOffset || 0, 0), maxOffset);
-    const start = D.addDays(thisWeek, 7 * ui.weekOffset);
+    const start = D.addDays(today, 7 * ui.weekOffset);
     const days = Array.from({ length: 7 }, (_, i) => D.addDays(start, i));
-    const label = ui.weekOffset === 0 ? "This week" : ui.weekOffset === 1 ? "Next week" : `Week of ${D.pretty(start, false)}`;
+    const label = ui.weekOffset === 0 ? "Next 7 days" : days.some(d => CFG.EXAMS.some(e => e.date === d)) ? "Exam days" : "Coming up";
     const range = `${D.pretty(days[0], false)} to ${D.pretty(days[6], false)}`;
 
     const dayHTML = d => {
@@ -1407,7 +1532,7 @@
       (s.tutorials || []).filter(t => t.date === d).forEach(t =>
         items.push({ t: t.start, html: `<button class="cal-item tut ${t.done ? "done" : ""}" data-act="tut-edit" data-id="${t.id}"><span class="ci-time">${D.clock(t.start)}</span>🙋 ${esc(S.className(t.classId))} tutorial${t.done ? " ✓" : ""}</button>` }));
       (s.plan ? s.plan.sessions.filter(x => x.date === d) : []).forEach(x =>
-        items.push({ t: x.start, html: `<button class="cal-item ses ${x.done ? "done" : ""} ${!x.done && x.date < today ? "late" : ""}" style="${colorVars(x.classId)}" data-act="details" data-id="${x.id}"><span class="ci-time">${D.clock(x.start)}${x.done ? " ✓" : ""}</span>${esc(x.title)}</button>` }));
+        items.push({ t: x.start, html: `<button class="cal-item ses ${x.done ? "done" : ""} ${!x.done && !x.folded && x.date < today ? "late" : ""}" style="${colorVars(x.classId)}" data-act="details" data-id="${x.id}"><span class="ci-time">${D.clock(x.start)}${x.done ? " ✓" : ""}</span>${esc(x.title)}</button>` }));
       items.sort((a, b) => a.t.localeCompare(b.t));
       return `<div class="cal-day ${d === today ? "today" : ""} ${d < today ? "past" : ""}">
         <div class="cal-head"><b>${D.daysShort[dow]}</b> <span>${D.pretty(d, false)}</span>${d === today ? ' <span class="today-tag">Today</span>' : ""}</div>
@@ -1622,7 +1747,8 @@
     { q: "Add my plan to my calendar", a: "Tap “Add to my calendar” on Today or My Study Plan and follow the steps.", btn: "Add it now", act: "add-calendar" },
     { q: "Start a study session", a: "Tap any session, then tap ▶ Start. You get a timer, what to do, and a break.", btn: "Go to Today", href: "#today" },
     { q: "Move a session I can't do", a: "Tap the session, then “Move it.” Pick later today or another day.", btn: "Open my study plan", href: "#plan" },
-    { q: "Make up a missed session", a: "Tap “Make up missed sessions.” Missed ones move to new times.", btn: "Make them up", act: "make-up" },
+    { q: "Make up a missed session", a: "Tap “Make up missed sessions.” Move them to new times, or fit them into your next session for each class.", btn: "Make them up", act: "make-up" },
+    { q: "My plan says exams are close", a: "That's short-on-time mode. Your plan focuses on your shakiest topics and a practice exam for each class. Want more? Add more study time.", btn: "Add more study time", act: "more-time" },
     { q: "Add one more session today", a: "Tap “Add a session today” on Today. You get a quick practice session on your shakiest topic.", btn: "Add one now", act: "add-today" },
     { q: "Add a tutorial, practice, or day off", a: "Go to My Weekly Schedule and tap “+ Add” on any day.", btn: "Open my schedule", href: "#week" },
     { q: "Add a study guide", a: "Go to My classes, tap a class, then upload the study guide or paste its text.", btn: "Open My classes", href: "#classes" },
@@ -2096,6 +2222,16 @@
 
       case "undo": { const f = undoFn; undoFn = null; if (f) f(); break; }
       case "add-today": addToday(); break;
+      case "update-guide": {
+        const id = el.dataset.class, c = s.classes[id];
+        const old = {}; c.topics.forEach(t => { old[t.text.toLowerCase()] = t; });
+        undoable(`${c.course} topics updated.`, () => {
+          S.applyGuide(id);
+          c.topics.forEach(t => { const o = old[t.text.toLowerCase()]; if (o) { t.conf = o.conf; if (o.firstConf) t.firstConf = o.firstConf; } });
+          save({ planInputs: true });
+        });
+        render(); break;
+      }
       case "use-guide": {
         const id = el.dataset.class;
         undoable(`${s.classes[id].course} study guide loaded.`, () => { S.applyGuide(id); save({ planInputs: true }); });
@@ -2168,7 +2304,7 @@
       }
       case "tut-from-stuck": e.preventDefault(); ui.tutClass = el.dataset.class; closeModal(); location.hash = "#week"; setTimeout(() => { ui.addFixedMode = true; addModal("", "tutorial"); }, 50); break;
       case "tour-done": s.tourDone = true; save(); render(); break;
-      case "catch-up": catchUp(); break;
+      case "catch-up": closeModal(); catchUp(); break;
       case "overwhelmed": overwhelmedModal(); break;
       case "breathe": breathe(); break;
       case "breathe-stop": clearInterval(breatheTimer); closeModal(); break;
@@ -2195,6 +2331,10 @@
       case "save-menu": saveMenu(); break;
       case "add-calendar": addCalendar(); break;
       case "make-up": makeUp(); break;
+      case "fold-all": foldSessions(missedSessions().map(x => x.id)); break;
+      case "fold-session": foldSessions([el.dataset.id]); break;
+      case "more-time": moreTimeModal(); break;
+      case "more-time-set": applyMoreTime(el.dataset.opt); break;
       case "move-session": moveMenu(el.dataset.id); break;
       case "move-go": moveSession(el.dataset.id, el.dataset.how); break;
       case "share": shareModal(); break;

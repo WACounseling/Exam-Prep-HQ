@@ -104,6 +104,7 @@
   function buildTasks(state) {
     const tasks = [];
     CFG.EXAMS.forEach(e => {
+      if (e.date <= D.today()) return;              // exam is today or over: nothing left to study for it
       const cls = state.classes[e.id];
       const grade = window.Store.gradeNum(cls.grade);
       const deadline = D.addDays(e.date, -1);
@@ -214,7 +215,7 @@
 
     if (task.kind === "gear") {
       overview = "Get everything in one place so the rest of your sessions go faster.";
-      steps = ["Find each class's study guide, notes, and old quizzes.", "Put each class's materials in one folder (paper or digital).", "On My classes, check that each class shows “✓ Study guide loaded.” If one doesn't, upload it there.", "Star any old quiz questions you got wrong. Those are great to review."];
+      steps = ["Find each class's study guide, notes, and old quizzes.", "Put each class's materials in one folder (paper or digital).", "On My classes, look for “✓ Study guide loaded.” If a class doesn't have one yet, it will appear when your teacher adds it, or you can upload your own copy.", "Star any old quiz questions you got wrong. Those are great to review."];
       return { overview, steps };
     }
 
@@ -241,6 +242,18 @@
     const lang = window.Store.langOf ? window.Store.langOf(task.classId) : "";
     const partNote = task.examPart && window.Store.partDate(task.classId, task.examPart)
       ? ` Your ${task.examPart.toLowerCase()} section is in class on ${D.pretty(window.Store.partDate(task.classId, task.examPart))}.` : "";
+
+    if (task.kind === "focus") {
+      overview = `Exams are close, so focus on ${name}: find what you don't know yet and practice just that.${partNote}`;
+      steps = [
+        open(learn),
+        `Skim ${task.combined ? "each topic" : (items.length ? what : "it")}. Put a star next to anything you can't explain yet.`,
+        `Quiz yourself on just the starred parts${practice.length ? `, using your ${one(practice)}` : ""}.`,
+        "Check your answers and fix mistakes in a different color.",
+        "Say the 3 most important ideas out loud."
+      ];
+      return { overview, steps };
+    }
 
     if (task.kind === "rebuild") {
       overview = `First round on ${name}. ${fromGuide ? "Use your teacher's materials to build" : "Build"} a study tool you'll use again.${partNote}`;
@@ -333,6 +346,7 @@
       case "quiz": return `${cls}: quiz yourself`;
       case "mix": return `${cls}: mix and teach`;
       case "review": return `${cls}: quick review`;
+      case "focus": return `${cls}: focus review`;
       case "test": return `${cls}: practice exam`;
       case "gear": return "Gear check: get organized";
       default: return cls;
@@ -347,12 +361,22 @@
 
     // Keep finished sessions from an earlier plan.
     const old = (state.plan && state.plan.sessions) || [];
-    const kept = old.filter(s => s.done);
+    // Keep finished sessions, and missed sessions the student folded into later ones.
+    const kept = old.filter(s => s.done || s.folded);
+    if (CFG.EXAMS.every(e => e.date < today)) {
+      return { generatedAt: Date.now(), startDate, sessions: kept, warnings: [], mode: "done", freeSlots: 0, totalSlots: 0 };
+    }
 
     const tasks = buildTasks(state);
+    const sameKind = (t, s) => t.kind === s.kind || (s.kind === "focus" && t.rep === 0 && t.kind !== "test");
     kept.forEach(s => {
-      const match = tasks.find(t => !t.done && t.classId === s.classId && t.topicId === s.topicId && t.kind === s.kind);
+      const match = tasks.find(t => !t.done && t.classId === s.classId && t.topicId === s.topicId && sameKind(t, s));
       if (match) { match.done = true; match.doneDate = s.date; }
+      // A combined focus review also covered a second topic.
+      [].concat(s.combinedWith || []).forEach(id => {
+        const other = tasks.find(t => !t.done && t.classId === s.classId && t.topicId === id && t.rep === 0);
+        if (other) { other.done = true; other.doneDate = s.date; }
+      });
     });
     // Later reps can't happen before the next spacing gap after a finished rep.
     tasks.forEach(t => {
@@ -365,8 +389,15 @@
     // Fit the plan to the time available: if there are more sessions than open slots, drop extra
     // rounds for the topics the student feels best about first (every topic keeps its first round,
     // and every class keeps its practice exam).
-    let trimmed = 0;
-    const gearSlot = kept.some(s => s.kind === "gear") ? 0 : 1;
+    let trimmed = 0, merged = 0;
+    // Short on time: the next exam is within 4 days, or first sessions won't all fit.
+    const nextExam = CFG.EXAMS.map(e => e.date).filter(d => d > today).sort()[0];
+    let short = !!nextExam && D.diff(startDate, nextExam) <= 4;
+    const essentialDue = dl => tasks.filter(t => !t.done && t.deadline && t.deadline <= dl &&
+      (t.kind === "test" || t.rep === 0)).length;
+    const anyDeadlines = Array.from(new Set(tasks.filter(t => !t.done && t.deadline).map(t => t.deadline))).sort();
+    if (anyDeadlines.some(dl => essentialDue(dl) > slots.filter(sl => sl.date <= dl).length - 1)) short = true;
+    const gearSlot = (kept.some(s => s.kind === "gear") || short) ? 0 : 1;
     // Check each deadline in order (the earliest exam first): work due by then has to fit by then.
     const deadlines = Array.from(new Set(tasks.filter(t => !t.done && t.deadline).map(t => t.deadline))).sort();
     deadlines.forEach(dl => {
@@ -375,10 +406,31 @@
       while (due().length > cap) {
         const removable = due().filter(t => t.kind !== "test" && t.rep > 0 &&
           !tasks.some(x => x.classId === t.classId && x.topicId === t.topicId && x.rep > t.rep && !x.done));
-        if (!removable.length) break;
-        removable.sort((a, b) => a.weight - b.weight || b.rep - a.rep);
-        tasks.splice(tasks.indexOf(removable[0]), 1);
-        trimmed++;
+        if (removable.length) {
+          removable.sort((a, b) => a.weight - b.weight || b.rep - a.rep);
+          tasks.splice(tasks.indexOf(removable[0]), 1);
+          trimmed++;
+          continue;
+        }
+        // Combine the two most confident first-round topics of one class into a single focus review.
+        const firsts = due().filter(t => t.rep === 0 && t.kind !== "test" && !t.examPart && (t.combinedCount || 1) < 3);
+        const byClass = {};
+        firsts.forEach(t => (byClass[t.classId] = byClass[t.classId] || []).push(t));
+        const cls = Object.keys(byClass).filter(k => byClass[k].length >= 2)
+          .sort((a, b) => byClass[b].length - byClass[a].length)[0];
+        if (!cls) break;
+        const pair = byClass[cls].sort((a, b) => (a.combinedCount || 1) - (b.combinedCount || 1) || a.weight - b.weight).slice(0, 2);
+        const [a, b] = pair;
+        if ((a.combinedCount || 1) + (b.combinedCount || 1) > 3) break;
+        a.topicText = `${a.name || a.topicText} + ${b.name || b.topicText}`;
+        a.name = a.topicText;
+        a.items = [];
+        a.resources = Array.from(new Set([...(a.resources || []), ...(b.resources || [])])).slice(0, 3);
+        a.kind = "focus"; a.combined = true;
+        a.combinedWith = [].concat(a.combinedWith || [], b.topicId, b.combinedWith || []);
+        a.combinedCount = (a.combinedCount || 1) + (b.combinedCount || 1);
+        tasks.splice(tasks.indexOf(b), 1);
+        merged++;
       }
     });
     const capacity = slots.length - gearSlot;
@@ -393,17 +445,22 @@
     }
     const sessions = [];
     const place = (slot, task) => {
+      if (task.kind === "rebuild" && task.classId !== "general") {
+        const ex = CFG.EXAMS.find(e => e.id === task.classId);
+        if (ex && D.diff(slot.date, ex.date) <= 3) task.kind = "focus";
+      }
       slot.task = task;
       task.done = true; task.scheduled = slot.date;
       sessions.push({
         id: uid(), date: slot.date, start: D.toTime(slot.start), end: D.toTime(slot.end),
         classId: task.classId, topicId: task.topicId, baseId: task.baseId || task.topicId, topicText: task.topicText, resources: task.resources || [],
-        kind: task.kind, title: titleFor(task, state), ...instructions(task, state), done: false
+        kind: task.kind, title: titleFor(task, state), ...instructions(task, state), done: false,
+        ...(task.combinedWith ? { combinedWith: task.combinedWith } : {})
       });
     };
 
     // 1) Kick-off gear check in the very first slot (unless already done).
-    if (!kept.some(s => s.kind === "gear") && slots.length) {
+    if (!kept.some(s => s.kind === "gear") && !short && slots.length) {
       place(slots[0], { classId: "general", topicId: "gear", topicText: "All classes", kind: "gear" });
     }
 
@@ -533,20 +590,36 @@
       trimmed++;
     });
 
+    // 4c) Missed sessions the student folded forward: add a short review to that class's next session.
+    kept.filter(k => k.folded).forEach(f => {
+      const target = sessions.filter(x => x.classId === f.classId && x.date >= today).sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start))[0];
+      if (!target) return;
+      target.also = (target.also || []).concat([{ topicText: f.topicText, resources: f.resources || [] }]);
+      const res = ((f.resources || [])[0] || "").replace(/\s*\([^)]*\)\s*$/, "");
+      const topic = (f.topicText || "").split(":")[0];
+      target.steps = (target.steps || []).concat([`Also, from a missed session: spend 5 minutes on ${topic}${res ? ` (open your ${lc(res)})` : ""}.`]);
+      target.tip = `${target.overview} ${target.steps.map((x, i) => `${i + 1}. ${x}`).join(" ")}${target.extra ? ` Tip: ${target.extra}` : ""}`;
+      f.foldedInto = target.date;
+    });
+
     // 5) Report anything that didn't fit.
+    let shortfall = 0;
     CFG.EXAMS.forEach(e => {
       // Extra rounds of a topic that already has a session are dropped quietly; only warn when a
       // topic's first session or a practice exam can't fit.
       const missing = tasks.filter(t => t.classId === e.id && !t.done && (t.kind === "test" ||
         !tasks.some(x => x.done && x.classId === t.classId && x.topicId === t.topicId)));
-      if (missing.length) {
-        warnings.push(`${missing.length} ${window.Store.className(e.id)} session${missing.length > 1 ? "s" : ""} didn't fit before the exam. Try adding study time, shortening sessions, or removing a busy block.`);
-      }
+      shortfall += missing.length;
     });
-    if (!slots.length) warnings.push("There's no open study time between now and exams. Check your study times and busy blocks.");
+    const testsMissing = tasks.some(t => t.kind === "test" && !t.done);
+    let note = "";
+    if (short || merged) note = "Exams are close, so your plan focuses on what matters most: quick reviews of your shakiest topics and a practice exam for each class.";
+    if (shortfall && !testsMissing) note = "Exams are close, so your plan focuses on what matters most: your shakiest topics and a practice exam for each class. Each practice exam covers the whole study guide.";
+    else if (shortfall) warnings.push("Some practice exams didn't fit before their exams. Tap “Add more study time” to fit them in.");
+    if (!slots.length) warnings.push("There's no open study time before your next exam. Tap “Add more study time.”");
 
     const all = kept.concat(sessions).sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start));
-    return { generatedAt: Date.now(), startDate, sessions: all, warnings, freeSlots: slots.filter(s => !s.task).length, totalSlots: slots.length };
+    return { generatedAt: Date.now(), startDate, sessions: all, warnings, note, mode: short || merged || shortfall ? "short" : "normal", merged, trimmed, shortfall, freeSlots: slots.filter(s => !s.task).length, totalSlots: slots.length };
   }
 
   // "Add a session today": one extra practice session, starting now, on the shakiest

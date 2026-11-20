@@ -197,7 +197,7 @@
       if (id === "lang") {
         const p = Store.state.profile;
         if (p.langChoice === "Literature") return "Literature";
-        return p.langName ? p.langName : "World Language";
+        return p.langName ? p.langName : "Language or Literature";
       }
       const ex = Store.exam(id);
       return ex ? ex.name : "All classes";

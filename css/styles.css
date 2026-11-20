@@ -949,3 +949,16 @@ main:focus, main:focus-visible { outline: none; }
 .wiz-class .wc-period { grid-column: 1 / -1; }
 .wiz-class .wc-period .period-pick { flex-direction: row; align-items: center; gap: 10px; }
 .wiz-class .wc-period label { font-weight: 700; }
+
+/* Short on time note */
+.calm-note { display: flex; gap: 10px; align-items: flex-start; background: #e3eef6; border-left: 6px solid var(--focus); border-radius: var(--r-sm); padding: 12px 14px; margin: 12px 0; font-size: var(--fs-sm); }
+.calm-note > span:first-child { font-size: 1.3rem; }
+.calm-note.compact { margin-top: 18px; }
+.warn .btn { margin-left: 8px; }
+/* Today: steps folded behind "See the steps" */
+.steps-more { margin: 2px 0 6px; }
+.steps-more > summary { cursor: pointer; font-weight: 700; font-size: var(--fs-sm); color: var(--c, var(--red)); padding: 4px 0; list-style: none; }
+.steps-more > summary::-webkit-details-marker { display: none; }
+.steps-more > summary::before { content: "▸ "; }
+.steps-more[open] > summary::before { content: "▾ "; }
+.add-today-note { margin-top: 14px; text-align: center; }
